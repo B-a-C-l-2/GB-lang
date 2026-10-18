@@ -1,0 +1,21 @@
+// GB v0.1 示例程序
+
+struct Point { x, y }
+
+fun dist2(p) {
+    return p.x * p.x + p.y * p.y;
+}
+
+let p = Point(3, 4);
+print("dist2 =", dist2(p));          // dist2 = 25
+
+// (0, 20]：左开右闭，i 取 1..20
+for (let i in (0, 20]) {
+    if (i % 5 == 0) { print(i); }    // 5 10 15 20
+}
+
+let a = [1, 2, 3, 4];
+push(a, 5);
+print(a);                            // [1, 2, 3, 4, 5]
+print(a[1:4]);                       // [2, 3, 4]，左闭右开
+print("hello"[1:4]);                 // ell
