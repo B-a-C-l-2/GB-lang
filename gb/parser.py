@@ -72,17 +72,17 @@ class Parser:
         if t == "for":
             return self._for_statement()
         if t == "break":
-            self._advance()
+            tok = self._advance()
             self._expect(";")
-            return ast.Break()
+            return ast.Break(tok.line)
         if t == "continue":
-            self._advance()
+            tok = self._advance()
             self._expect(";")
-            return ast.Continue()
+            return ast.Continue(tok.line)
         return self._expr_statement()
 
     def _block_body(self):
-        """假设 '{' 尚未消费，返回块内语句列表。"""
+        """消费 '{' ... '}'，返回块内语句列表。"""
         self._expect("{")
         statements = []
         while not self._check("}"):
@@ -93,18 +93,19 @@ class Parser:
         return statements
 
     def _block_statement(self):
-        return ast.Block(self._block_body())
+        line = self._current().line
+        return ast.Block(self._block_body(), line)
 
     def _let_decl(self):
-        self._expect("let")
+        tok = self._expect("let")
         name = self._expect("IDENT").value
         self._expect("=")
         value = self._expression()
         self._expect(";")
-        return ast.Let(name, value)
+        return ast.Let(name, value, tok.line)
 
     def _fun_decl(self):
-        self._expect("fun")
+        tok = self._expect("fun")
         name = self._expect("IDENT").value
         self._expect("(")
         params = []
@@ -118,10 +119,10 @@ class Parser:
                     break
         self._expect(")")
         body = self._block_body()
-        return ast.Fun(name, params, body)
+        return ast.Fun(name, params, body, tok.line)
 
     def _struct_decl(self):
-        self._expect("struct")
+        tok = self._expect("struct")
         name = self._expect("IDENT").value
         self._expect("{")
         fields = []
@@ -136,16 +137,16 @@ class Parser:
         if not fields:
             raise ParseError(self._current(), "struct 至少需要一个字段")
         self._expect("}")
-        return ast.Struct(name, fields)
+        return ast.Struct(name, fields, tok.line)
 
     def _return_statement(self):
-        self._expect("return")
+        tok = self._expect("return")
         value = None if self._check(";") else self._expression()
         self._expect(";")
-        return ast.Return(value)
+        return ast.Return(value, tok.line)
 
     def _if_statement(self):
-        self._expect("if")
+        tok = self._expect("if")
         condition = self._expression()
         then_body = self._block_body()
         else_body = None
@@ -154,16 +155,16 @@ class Parser:
                 else_body = [self._if_statement()]
             else:
                 else_body = self._block_body()
-        return ast.If(condition, then_body, else_body)
+        return ast.If(condition, then_body, else_body, tok.line)
 
     def _while_statement(self):
-        self._expect("while")
+        tok = self._expect("while")
         condition = self._expression()
         body = self._block_body()
-        return ast.While(condition, body)
+        return ast.While(condition, body, tok.line)
 
     def _for_statement(self):
-        self._expect("for")
+        tok = self._expect("for")
         self._expect("(")
         # 区间 for：let IDENT in
         if (self._check("let") and self._peek(1).type == "IDENT"
@@ -174,7 +175,7 @@ class Parser:
             interval = self._interval()
             self._expect(")")
             body = self._block_body()
-            return ast.ForRange(name, interval, body)
+            return ast.ForRange(name, interval, body, tok.line)
 
         # C 风格 for
         if self._match(";"):
@@ -188,15 +189,16 @@ class Parser:
         update = None if self._check(")") else self._expression()
         self._expect(")")
         body = self._block_body()
-        return ast.ForC(init, condition, update, body)
+        return ast.ForC(init, condition, update, body, tok.line)
 
     def _interval(self):
-        if self._check("["):
+        open_tok = self._current()
+        if open_tok.type == "[":
             left_inclusive = True
-        elif self._check("("):
+        elif open_tok.type == "(":
             left_inclusive = False
         else:
-            raise ParseError(self._current(), "区间应以 [ 或 ( 开始")
+            raise ParseError(open_tok, "区间应以 [ 或 ( 开始")
         self._advance()
         start = self._expression()
         self._expect(",")
@@ -208,12 +210,13 @@ class Parser:
             right_inclusive = False
         else:
             raise ParseError(close, "区间应以 ] 或 ) 结束")
-        return ast.Interval(start, end, left_inclusive, right_inclusive)
+        return ast.Interval(start, end, left_inclusive, right_inclusive,
+                            open_tok.line)
 
     def _expr_statement(self):
         expr = self._expression()
         self._expect(";")
-        return ast.ExprStmt(expr)
+        return ast.ExprStmt(expr, expr.line)
 
     # ---------- 表达式（优先级从低到高） ----------
 
@@ -226,29 +229,29 @@ class Parser:
             value = self._assignment()
             if not isinstance(expr, (ast.Var, ast.Index, ast.Get)):
                 raise ParseError(self._current(), "赋值目标非法")
-            return ast.Assign(expr, value)
+            return ast.Assign(expr, value, expr.line)
         return expr
 
     def _or(self):
         expr = self._and()
         while self._match("or"):
             right = self._and()
-            expr = ast.Logical("or", expr, right)
+            expr = ast.Logical("or", expr, right, expr.line)
         return expr
 
     def _and(self):
         expr = self._equality()
         while self._match("and"):
             right = self._equality()
-            expr = ast.Logical("and", expr, right)
+            expr = ast.Logical("and", expr, right, expr.line)
         return expr
 
     def _binary(self, next_level, ops):
         expr = next_level()
         while self._current().type in ops:
-            op = self._advance().type
+            op_tok = self._advance()
             right = next_level()
-            expr = ast.Binary(op, expr, right)
+            expr = ast.Binary(op_tok.type, expr, right, expr.line)
         return expr
 
     def _equality(self):
@@ -265,8 +268,8 @@ class Parser:
 
     def _unary(self):
         if self._check("-") or self._check("not"):
-            op = self._advance().type
-            return ast.Unary(op, self._unary())
+            op = self._advance()
+            return ast.Unary(op.type, self._unary(), op.line)
         return self._postfix()
 
     def _postfix(self):
@@ -280,19 +283,19 @@ class Parser:
                         if not self._match(","):
                             break
                 self._expect(")")
-                expr = ast.Call(expr, args)
+                expr = ast.Call(expr, args, expr.line)
             elif self._match("["):
                 start = self._expression()
                 if self._match(":"):
                     end = self._expression()
                     self._expect("]")
-                    expr = ast.Slice(expr, start, end)
+                    expr = ast.Slice(expr, start, end, expr.line)
                 else:
                     self._expect("]")
-                    expr = ast.Index(expr, start)
+                    expr = ast.Index(expr, start, expr.line)
             elif self._match("."):
                 name = self._expect("IDENT").value
-                expr = ast.Get(expr, name)
+                expr = ast.Get(expr, name, expr.line)
             else:
                 return expr
 
@@ -301,22 +304,22 @@ class Parser:
         t = tok.type
         if t == "NUMBER":
             self._advance()
-            return ast.Number(tok.value)
+            return ast.Number(tok.value, tok.line)
         if t == "STRING":
             self._advance()
-            return ast.String(tok.value)
+            return ast.String(tok.value, tok.line)
         if t == "true":
             self._advance()
-            return ast.Bool(True)
+            return ast.Bool(True, tok.line)
         if t == "false":
             self._advance()
-            return ast.Bool(False)
+            return ast.Bool(False, tok.line)
         if t == "null":
             self._advance()
-            return ast.Null()
+            return ast.Null(tok.line)
         if t == "IDENT":
             self._advance()
-            return ast.Var(tok.value)
+            return ast.Var(tok.value, tok.line)
         if t == "[":
             self._advance()
             elements = []
@@ -329,7 +332,7 @@ class Parser:
                         continue
                     break
             self._expect("]")
-            return ast.Array(elements)
+            return ast.Array(elements, tok.line)
         if t == "(":
             self._advance()
             expr = self._expression()

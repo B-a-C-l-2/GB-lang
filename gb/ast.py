@@ -1,4 +1,8 @@
-"""GB 语法树节点定义。"""
+"""GB 语法树节点定义。
+
+每个节点带 line（源码行号，从 1 开始），用于运行时错误定位；
+解析器不产生的节点（Module）为 0。
+"""
 
 from dataclasses import dataclass
 
@@ -8,12 +12,14 @@ from dataclasses import dataclass
 @dataclass
 class Module:
     statements: list
+    line: int = 0
 
 
 @dataclass
 class Let:
     name: str
     value: object
+    line: int = 0
 
 
 @dataclass
@@ -21,22 +27,26 @@ class Fun:
     name: str
     params: list           # list[str]
     body: list             # list[语句]
+    line: int = 0
 
 
 @dataclass
 class Struct:
     name: str
     fields: list           # list[str]
+    line: int = 0
 
 
 @dataclass
 class Return:
     value: object          # None 表示 return;
+    line: int = 0
 
 
 @dataclass
 class Block:
     statements: list
+    line: int = 0
 
 
 @dataclass
@@ -44,12 +54,14 @@ class If:
     condition: object
     then_body: list
     else_body: object      # list 或 None
+    line: int = 0
 
 
 @dataclass
 class While:
     condition: object
     body: list
+    line: int = 0
 
 
 @dataclass
@@ -59,6 +71,7 @@ class ForC:
     condition: object      # 表达式或 None
     update: object         # 表达式或 None
     body: list
+    line: int = 0
 
 
 @dataclass
@@ -67,21 +80,23 @@ class ForRange:
     name: str
     interval: object       # Interval
     body: list
+    line: int = 0
 
 
 @dataclass
 class Break:
-    pass
+    line: int = 0
 
 
 @dataclass
 class Continue:
-    pass
+    line: int = 0
 
 
 @dataclass
 class ExprStmt:
     expression: object
+    line: int = 0
 
 
 # ---------------- 表达式 ----------------
@@ -89,26 +104,30 @@ class ExprStmt:
 @dataclass
 class Number:
     value: object          # int 或 float
+    line: int = 0
 
 
 @dataclass
 class String:
     value: str
+    line: int = 0
 
 
 @dataclass
 class Bool:
     value: bool
+    line: int = 0
 
 
 @dataclass
 class Null:
-    pass
+    line: int = 0
 
 
 @dataclass
 class Array:
     elements: list
+    line: int = 0
 
 
 @dataclass
@@ -118,23 +137,27 @@ class Interval:
     end: object
     left_inclusive: bool
     right_inclusive: bool
+    line: int = 0
 
 
 @dataclass
 class Var:
     name: str
+    line: int = 0
 
 
 @dataclass
 class Assign:
     target: object         # Var / Index / Get
     value: object
+    line: int = 0
 
 
 @dataclass
 class Unary:
     op: str                # "-" 或 "not"
     operand: object
+    line: int = 0
 
 
 @dataclass
@@ -142,6 +165,7 @@ class Binary:
     op: str
     left: object
     right: object
+    line: int = 0
 
 
 @dataclass
@@ -149,18 +173,21 @@ class Logical:
     op: str                # "and" 或 "or"
     left: object
     right: object
+    line: int = 0
 
 
 @dataclass
 class Call:
     callee: object
     args: list
+    line: int = 0
 
 
 @dataclass
 class Index:
     object: object
     index: object
+    line: int = 0
 
 
 @dataclass
@@ -168,9 +195,11 @@ class Slice:
     object: object
     start: object
     end: object
+    line: int = 0
 
 
 @dataclass
 class Get:
     object: object
     name: str
+    line: int = 0
