@@ -51,7 +51,8 @@ class Builtin:
         self.fn = fn
 
     def check_arity(self, n, line):
-        if n < self.min_arity or n > self.max_arity:
+        too_many = self.max_arity is not None and n > self.max_arity
+        if n < self.min_arity or too_many:
             if self.min_arity == self.max_arity:
                 expect = f"需要 {self.min_arity} 个参数"
             else:
