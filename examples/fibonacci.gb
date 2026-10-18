@@ -1,0 +1,6 @@
+// 斐波那契数列前 11 项：数组 + push + 区间 for
+let fib = [0, 1];
+for (let i in [2, 10]) {
+    push(fib, fib[i - 1] + fib[i - 2]);
+}
+print(fib);
