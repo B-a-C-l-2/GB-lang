@@ -9,7 +9,7 @@
 - 基本类型：整数、浮点数、布尔、字符串、null
 - 复合类型：动态数组、struct（纯数据结构）；数组与字符串支持切片 `[a:b]`
 - 基本输入输出：`print` / `input`
-- 控制流：`if`/`else`、`while`、C 风格 `for`、数学区间 `for (let i in (a, b]);`、`break`、`continue`
+- 控制流：`if`/`else`、`while`、C 风格 `for`、数学区间 `for (let i in (a, b]) { }`、`break`、`continue`
 - 函数：定义、调用、词法闭包
 
 ## 3. 实现方式
@@ -73,7 +73,7 @@ if         := 'if' expr block ('else' (if | block))?
 while      := 'while' expr block
 for        := cStyleFor | rangeFor
 cStyleFor  := 'for' '(' (letDecl | exprStmt)? ';' expr? ';' expr? ')' block
-rangeFor   := 'for' '(' 'let' IDENT 'in' interval ')' ';' block
+rangeFor   := 'for' '(' 'let' IDENT 'in' interval ')' block
 interval   := ('[' | '(') expr ',' expr (']' | ')')
 exprStmt   := expr ';'
 
@@ -99,7 +99,7 @@ args       := expr (',' expr)*
 - **函数**：位置参数，实参数量必须匹配；无 `return` 或 `return;` 返回 `null`；函数词法捕获外层环境（闭包）；函数不是一等值（不能传参/赋值）
 - **struct**：声明时给出字段名列表，编译器（解释器）自动生成同序位置构造函数；可访问/修改已声明字段，访问不存在的字段、构造参数数量不符均为运行时错误；struct 无方法、无继承
 - **数组**：0 起始下标，负下标越界；下标必须为 int，越界为运行时错误
-- **区间 for**：`for (let i in 区间); { }`，循环变量为块级作用域；区间记号直接表达端点开闭：
+- **区间 for**：`for (let i in 区间) { }`，循环变量为块级作用域；区间记号直接表达端点开闭：
 
   | 写法 | 取值 |
   |---|---|
@@ -134,7 +134,7 @@ let p = Point(3, 4);
 print("dist2 =", dist2(p));      // dist2 = 25
 
 // (0, 20]：左开右闭，i 取 1..20
-for (let i in (0, 20]); {
+for (let i in (0, 20]) {
     if (i % 5 == 0) { print(i); }   // 5 10 15 20
 }
 
