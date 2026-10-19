@@ -159,6 +159,15 @@ def _push(args):
     return None
 
 
+def _pop(args):
+    arr = args[0]
+    if not isinstance(arr, list):
+        raise GbError("pop 的参数必须是数组")
+    if not arr:
+        raise GbError("对空数组 pop")
+    return arr.pop()
+
+
 BUILTINS = {
     "print": Builtin("print", 0, None, _print),
     "input": Builtin("input", 0, 1, _input),
@@ -167,5 +176,6 @@ BUILTINS = {
     "float": Builtin("float", 1, 1, _to_float),
     "str": Builtin("str", 1, 1, _to_str),
     "push": Builtin("push", 2, 2, _push),
+    "pop": Builtin("pop", 1, 1, _pop),
 }
 # 可变参数：max_arity=None 表示不限制
