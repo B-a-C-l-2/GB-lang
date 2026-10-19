@@ -105,8 +105,23 @@ class Interpreter:
         self.function_depth = 0
 
     def run(self, module):
+        self._hoist(module.statements, self.env)
         for stmt in module.statements:
             self._exec(stmt, self.env)
+
+    def _hoist(self, statements, env):
+        """进入作用域时先注册本层直接包含的 fun/struct（声明提升）。"""
+        for node in statements:
+            t = type(node)
+            if t is ast.Fun:
+                env.declare(node.name,
+                            Function(node.name, node.params, node.body,
+                                     env, node.line),
+                            node.line, node.col)
+            elif t is ast.Struct:
+                env.declare(node.name,
+                            StructDef(node.name, node.fields, node.line),
+                            node.line, node.col)
 
     # ---------- 语句 ----------
 
@@ -117,15 +132,9 @@ class Interpreter:
             env.declare(node.name, self._eval(node.value, env),
                         node.line, node.col)
 
-        elif t is ast.Fun:
-            env.declare(node.name,
-                        Function(node.name, node.params, node.body,
-                                 env, node.line),
-                        node.line, node.col)
-
-        elif t is ast.Struct:
-            env.declare(node.name, StructDef(node.name, node.fields,
-                                             node.line), node.line, node.col)
+        elif t is ast.Fun or t is ast.Struct:
+            # 已在进入作用域时提升注册，执行到声明语句无需再做任何事
+            pass
 
         elif t is ast.Block:
             self._exec_body(node.statements, env)
@@ -221,6 +230,7 @@ class Interpreter:
 
     def _exec_body(self, statements, parent_env):
         env = Environment(parent_env)
+        self._hoist(statements, env)
         for stmt in statements:
             self._exec(stmt, env)
 

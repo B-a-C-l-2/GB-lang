@@ -174,9 +174,31 @@ class TestFunctions(unittest.TestCase):
         """
         self.assertEqual(run(src), "3\n")
 
-    def test_no_hoisting(self):
-        # 定义之前调用：运行到调用点时 f 尚不存在
-        run_error("print(f()); fun f() { return 1; }")
+    def test_hoisting_forward_call(self):
+        # 定义语句执行之前即可调用
+        self.assertEqual(run("print(f()); fun f() { return 1; }"), "1\n")
+        src = ("let p = Point(3, 4); print(p.x);"
+               "struct Point { x, y }")
+        self.assertEqual(run(src), "3\n")
+
+    def test_hoisting_mutual_recursion(self):
+        src = """
+        fun isEven(n) { if (n == 0) { return true; } return isOdd(n - 1); }
+        fun isOdd(n) { if (n == 0) { return false; } return isEven(n - 1); }
+        print(isEven(10), isOdd(7));
+        """
+        self.assertEqual(run(src), "true true\n")
+
+    def test_hoisting_is_block_scoped(self):
+        # 块内声明不提升到块外
+        self.assertEqual(run("{ fun g() { return 1; } print(g()); }"), "1\n")
+        run_error("g(); { fun g() { return 1; } }")
+
+    def test_calling_never_declared_still_errors(self):
+        run_error("print(nope());")
+
+    def test_duplicate_fun_same_scope_errors(self):
+        run_error("fun f() { return 1; } fun f() { return 2; }")
 
     def test_arity_mismatch(self):
         run_error("fun f(a) { } f(1, 2);")
