@@ -367,6 +367,27 @@ class TestErrorLocations(unittest.TestCase):
         self.assertEqual((e.line, e.col), (1, 7))  # len 调用起点
 
 
+class TestCallStackFrames(unittest.TestCase):
+    def test_frames_snapshot_innermost_first(self):
+        src = ("fun inner() { return 1 / 0; }\n"
+               "fun outer() { return inner(); }\n"
+               "print(outer());")
+        e = run_error(src)
+        # 帧按调用顺序入栈：outer 先、inner 后
+        self.assertEqual(e.gb_frames,
+                         [("outer", 3, 7), ("inner", 2, 22)])
+
+    def test_no_frames_at_top_level(self):
+        e = run_error("print(1 / 0);")
+        self.assertIsNone(getattr(e, "gb_frames", None))
+
+    def test_frames_via_builtin_error(self):
+        src = ("fun f() { return len(1); }\n"
+               "print(f());")
+        e = run_error(src)
+        self.assertEqual(e.gb_frames, [("f", 2, 7)])
+
+
 class TestEndToEnd(unittest.TestCase):
     def test_design_example(self):
         src = """

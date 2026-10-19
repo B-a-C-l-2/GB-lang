@@ -119,6 +119,8 @@ class Interpreter:
         self.env = global_env if global_env is not None else make_global_env()
         self.loop_depth = 0
         self.function_depth = 0
+        # 调用栈帧：(函数名, 调用点行, 调用点列)，用于错误诊断（v0.3）
+        self.call_stack = []
 
     def run(self, module):
         self._hoist(module.statements, self.env)
@@ -455,13 +457,20 @@ class Interpreter:
             saved_loop_depth = self.loop_depth
             self.loop_depth = 0
             self.function_depth += 1
+            self.call_stack.append((callee.name, node.line, node.col))
             try:
                 self._exec_body(callee.body, call_env)
             except _Return as ret:
                 return ret.value
+            except (GbError, RecursionError) as e:
+                # 最内层帧快照完整调用栈，供入口打印诊断（v0.3）
+                if getattr(e, "gb_frames", None) is None:
+                    e.gb_frames = list(self.call_stack)
+                raise
             finally:
                 self.function_depth -= 1
                 self.loop_depth = saved_loop_depth
+                self.call_stack.pop()
             return None
 
         if isinstance(callee, Builtin):

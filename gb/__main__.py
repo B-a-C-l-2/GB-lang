@@ -29,6 +29,15 @@ def _pointer_line(src_line, col):
     return "".join(parts) + "^"
 
 
+def _format_frames(frames):
+    """v0.3：由近及远打印最近至多 5 帧调用栈；无帧时返回空串。"""
+    if not frames:
+        return ""
+    lines = [f"  在 {name}（第 {line} 行，第 {col} 列）调用"
+             for name, line, col in reversed(frames[-5:])]
+    return "\n" + "\n".join(lines)
+
+
 def _format_error(kind, message, source, line, col, got=None):
     """错误首行 + 源码行 + ^ 指示；无位置（line 为 0）时省略后两者。"""
     head = f"{kind}错误"
@@ -73,11 +82,14 @@ def main(argv):
     try:
         interpreter.run(module)
     except GbError as e:
-        print(_format_error("运行时", e.message, source, e.line, e.col),
-              file=sys.stderr)
+        text = _format_error("运行时", e.message, source, e.line, e.col)
+        text += _format_frames(getattr(e, "gb_frames", None))
+        print(text, file=sys.stderr)
         return 1
-    except RecursionError:
-        print("运行时错误：调用栈过深（可能存在无限递归）", file=sys.stderr)
+    except RecursionError as e:
+        text = "运行时错误：调用栈过深（可能存在无限递归）"
+        text += _format_frames(getattr(e, "gb_frames", None))
+        print(text, file=sys.stderr)
         return 1
     return 0
 
