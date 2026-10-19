@@ -1,0 +1,26 @@
+// 冒泡排序：输入数组长度和元素，输出升序排序结果
+// 运行：python -m gb examples/bubblesort.gb
+
+fun bubbleSort(a) {
+  let n = len(a);
+  for (let i = 0; i < n - 1; i = i + 1) {
+    for (let j = 0; j < n - 1 - i; j = j + 1) {
+      if (a[j] > a[j + 1]) {
+        let t = a[j];
+        a[j] = a[j + 1];
+        a[j + 1] = t;
+      }
+    }
+  }
+  return a;
+}
+
+let n = int(input("元素个数: "));
+let a = [];
+for (let i = 0; i < n; i = i + 1) {
+  push(a, int(input("第 " + str(i + 1) + " 个: ")));
+}
+
+print("排序前:", a);
+bubbleSort(a);
+print("排序后:", a);
