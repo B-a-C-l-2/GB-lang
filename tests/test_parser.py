@@ -49,6 +49,15 @@ class TestParser(unittest.TestCase):
         self.assertFalse(node.interval.left_inclusive)
         self.assertTrue(node.interval.right_inclusive)
 
+    def test_range_for_without_let(self):
+        node = parse_one("for (i in [1, 3]) { }")
+        self.assertIsInstance(node, ast.ForRange)
+        self.assertFalse(node.declare)
+        self.assertEqual((node.name_line, node.name_col), (1, 6))
+        # 无 let 但含分号的仍是 C 风格 for
+        self.assertIsInstance(
+            parse_one("for (i = 0; i < 2; i = i + 1) { }"), ast.ForC)
+
     def test_c_style_for(self):
         node = parse_one("for (let i = 0; i < 3; i = i + 1) { }")
         self.assertIsInstance(node, ast.ForC)

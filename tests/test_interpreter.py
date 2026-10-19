@@ -284,6 +284,24 @@ class TestLoops(unittest.TestCase):
         run_error("for (let i in [1, 2.0]) { }")
         run_error("for (let i in [1, true]) { }")
 
+    def test_range_for_without_let_reuses_outer_var(self):
+        src = ("let i = -5;\n"
+               "for (i in [1, 6]) { print(i); }\n"
+               "print(i);")
+        self.assertEqual(run(src), "1\n2\n3\n4\n5\n6\n6\n")
+
+    def test_range_for_without_let_undeclared_is_error(self):
+        e = run_error("for (z in [1, 3]) { print(z); }")
+        self.assertEqual((e.line, e.col), (1, 6))  # 变量名 z
+
+    def test_range_for_without_let_empty_assigns_start(self):
+        # (5, 3) 换算起点为 6，零次循环也先赋起点
+        self.assertEqual(
+            run("let i = 9; for (i in (5, 3)) { } print(i);"), "6\n")
+
+    def test_range_for_let_remains_block_scoped(self):
+        run_error("for (let i in [1, 2]) { } print(i);")
+
     def test_break_continue_outside_loop(self):
         run_error("break;")
         run_error("continue;")

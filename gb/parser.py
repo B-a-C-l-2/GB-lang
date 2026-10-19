@@ -184,17 +184,20 @@ class Parser:
     def _for_statement(self):
         tok = self._expect("for")
         self._expect("(")
-        # 区间 for：let IDENT in
-        if (self._check("let") and self._peek(1).type == "IDENT"
-                and self._peek(2).type == "in"):
-            self._advance()  # let
-            name_tok = self._expect("IDENT")
-            name = name_tok.value
+        # 区间 for：(let)? IDENT in
+        is_let = self._check("let")
+        offset = 1 if is_let else 0
+        if (self._peek(offset).type == "IDENT"
+                and self._peek(offset + 1).type == "in"):
+            name_tok = self._peek(offset)
+            if is_let:
+                self._advance()  # let
+            name = self._expect("IDENT").value
             self._expect("in")
             interval = self._interval()
             self._expect(")")
             body = self._block_body()
-            return ast.ForRange(name, interval, body, True,
+            return ast.ForRange(name, interval, body, is_let,
                                 tok.line, tok.col,
                                 name_tok.line, name_tok.col)
 

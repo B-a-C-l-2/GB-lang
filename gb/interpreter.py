@@ -204,12 +204,26 @@ class Interpreter:
             hi = end if iv.right_inclusive else end - 1
 
             loop_env = Environment(env)
-            loop_env.declare(node.name, lo, node.name_line, node.name_col)
+            if node.declare:
+                # let：循环专用环境中的块级变量
+                loop_env.declare(node.name, lo,
+                                 node.name_line, node.name_col)
+
+                def bind(v):
+                    loop_env.vars[node.name] = v
+            else:
+                # 无 let：向外层已声明变量赋值；先赋起点（与 C 风格 for
+                # 的初始化子句一致），未声明时报错位置指向变量名
+                def bind(v):
+                    env.assign(node.name, v,
+                               node.name_line, node.name_col)
+
+            bind(lo)
             i = lo
             self.loop_depth += 1
             try:
                 while i <= hi:
-                    loop_env.vars[node.name] = i
+                    bind(i)
                     try:
                         self._exec_body(node.body, loop_env)
                     except _Continue:
