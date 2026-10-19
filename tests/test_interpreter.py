@@ -102,6 +102,16 @@ class TestTruthiness(unittest.TestCase):
         self.assertEqual(run(src), "true\nfalse\n")
 
 
+class TestBreakContinueBoundary(unittest.TestCase):
+    def test_break_cannot_escape_function(self):
+        e = run_error("fun f() { break; }\nwhile (true) { f(); }")
+        self.assertIn("break", e.message)
+
+    def test_continue_cannot_escape_function(self):
+        e = run_error("fun f() { continue; }\nwhile (true) { f(); }")
+        self.assertIn("continue", e.message)
+
+
 class TestIndexAndSlice(unittest.TestCase):
     def test_string_index(self):
         self.assertEqual(run('print("hello"[1]);'), "e\n")

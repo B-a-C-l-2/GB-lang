@@ -450,6 +450,9 @@ class Interpreter:
             call_env = Environment(callee.closure)
             for name, value in zip(callee.params, args):
                 call_env.declare(name, value)
+            # 函数边界重置 loop_depth：break/continue 不能跨函数逃逸
+            saved_loop_depth = self.loop_depth
+            self.loop_depth = 0
             self.function_depth += 1
             try:
                 self._exec_body(callee.body, call_env)
@@ -457,6 +460,7 @@ class Interpreter:
                 return ret.value
             finally:
                 self.function_depth -= 1
+                self.loop_depth = saved_loop_depth
             return None
 
         if isinstance(callee, Builtin):
