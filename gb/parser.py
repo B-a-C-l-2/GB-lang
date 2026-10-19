@@ -62,7 +62,7 @@ class Parser:
         if self._check(type):
             return self._advance()
         expected = self._EXPECTED_DISPLAY.get(type, f'"{type}"')
-        raise ParseError(self._current(), f"此处应为 {expected}")
+        raise ParseError(self._current(), f"此处应为{expected}")
 
     # ---------- 入口 ----------
 

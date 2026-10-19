@@ -26,11 +26,11 @@ class TestParser(unittest.TestCase):
     def test_expected_token_message_uses_chinese(self):
         # 内部 token 类型名（IDENT）不应泄漏到用户可见消息
         e = parse_error("let  = 6;")
-        self.assertEqual(e.message, "此处应为 标识符")
+        self.assertEqual(e.message, "此处应为标识符")
         e = parse_error("fun f() {} = 6;")
         self.assertEqual(e.message, "此处应为表达式")
         e = parse_error("let x = 1")
-        self.assertEqual(e.message, '此处应为 ";"')
+        self.assertEqual(e.message, '此处应为";"')
 
     def test_comparison_is_not_chainable_as_logic(self):
         node = parse_one("1 < 2 == true;").expression
