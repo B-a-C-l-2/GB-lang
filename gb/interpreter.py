@@ -6,17 +6,30 @@ from gb.builtins import (
 )
 
 
-class Environment:
-    __slots__ = ("vars", "parent")
+def _binding_kind(value):
+    """重复声明报错时已有绑定的种类名称。"""
+    if isinstance(value, Function):
+        return "函数"
+    if isinstance(value, StructDef):
+        return "struct"
+    return "变量"
 
-    def __init__(self, parent=None):
+
+class Environment:
+    """作用域帧。read_only 帧（内建外层）可读、可遮蔽，不能赋值改写。"""
+
+    __slots__ = ("vars", "parent", "read_only")
+
+    def __init__(self, parent=None, read_only=False):
         self.vars = {}
         self.parent = parent
+        self.read_only = read_only
 
     def declare(self, name, value, line=0, col=0):
         if name in self.vars:
             raise GbError(
-                f"变量 {name} 在当前作用域重复声明", line, col)
+                f"名字 {name} 已声明为{_binding_kind(self.vars[name])}，"
+                f"不能在当前作用域重复声明", line, col)
         self.vars[name] = value
 
     def get(self, name, line=0, col=0):
@@ -31,6 +44,8 @@ class Environment:
         env = self
         while env is not None:
             if name in env.vars:
+                if env.read_only:
+                    break  # 内建帧不可写：按未定义赋值处理，促使先 let
                 env.vars[name] = value
                 return
             env = env.parent
@@ -38,10 +53,11 @@ class Environment:
 
 
 def make_global_env():
-    env = Environment()
+    # 内建位于全局用户环境之外的只读外层帧
+    builtin_env = Environment(read_only=True)
     for name, builtin in BUILTINS.items():
-        env.vars[name] = builtin
-    return env
+        builtin_env.vars[name] = builtin
+    return Environment(builtin_env)
 
 
 class _Return(Exception):

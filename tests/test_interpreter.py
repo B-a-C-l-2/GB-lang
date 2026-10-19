@@ -220,7 +220,29 @@ class TestScope(unittest.TestCase):
     def test_redeclare_same_scope_is_error(self):
         run_error("let x = 1; let x = 2;")
         run_error("fun f() { let x = 1; let x = 2; } f();")
-        run_error("let print = 1;")
+
+    def test_redeclare_error_names_existing_kind(self):
+        e = run_error("fun f() { } let f = 2;")
+        self.assertIn("已声明为函数", e.message)
+        e = run_error("struct S { x } fun S() { }")
+        self.assertIn("已声明为struct", e.message)
+
+    def test_builtin_names_are_shadowable(self):
+        self.assertEqual(run("let len = 5; print(len);"), "5\n")
+        # 顶层 fun 遮蔽内建 len（函数不是值，只能调用）
+        self.assertEqual(run("fun len() { return 9; } print(len());"),
+                         "9\n")
+        # 函数内 let 遮蔽（v0.1 即支持）
+        self.assertEqual(
+            run("fun f() { let print = 3; return print; } print(f());"),
+            "3\n")
+        # 未遮蔽时内建照常可用
+        self.assertEqual(run('print(len([1, 2]));'), "2\n")
+
+    def test_builtins_cannot_be_reassigned_without_let(self):
+        run_error("len = 5;")
+        # 内建未被污染
+        self.assertEqual(run("print(len([1, 2]));"), "2\n")
 
     def test_assign_undeclared_is_error(self):
         run_error("x = 1;")
