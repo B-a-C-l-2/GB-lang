@@ -33,6 +33,32 @@ class TestLexer(unittest.TestCase):
         types = [t.type for t in tokens]
         self.assertEqual(types, ["NUMBER", "+", "NUMBER", "NUMBER", "EOF"])
         self.assertEqual(tokens[-2].line, 2)
+        self.assertEqual(tokens[-2].col, 2)
+
+    def test_columns(self):
+        tokens = tokenize("let x = 1;\nx = 2;\n")
+        by = [(t.type, t.line, t.col) for t in tokens if t.type != "EOF"]
+        self.assertEqual(by, [
+            ("let", 1, 1), ("IDENT", 1, 5), ("=", 1, 7),
+            ("NUMBER", 1, 9), (";", 1, 10),
+            ("IDENT", 2, 1), ("=", 2, 3), ("NUMBER", 2, 5),
+            (";", 2, 6),
+        ])
+
+    def test_eof_col_at_end_of_last_line(self):
+        tokens = tokenize("1 +")
+        self.assertEqual(tokens[-1].type, "EOF")
+        self.assertEqual((tokens[-1].line, tokens[-1].col), (1, 4))
+        tokens = tokenize("")
+        self.assertEqual((tokens[-1].line, tokens[-1].col), (1, 1))
+
+    def test_error_has_column(self):
+        try:
+            tokenize("let @ = 1;")
+        except LexerError as e:
+            self.assertEqual((e.line, e.col), (1, 5))
+        else:
+            self.fail("应抛出 LexerError")
 
     def test_operators_and_slice_colon(self):
         tokens = tokenize("a[1:2] != b <= c == d")
