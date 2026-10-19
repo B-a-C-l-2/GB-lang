@@ -43,10 +43,10 @@ struct Point { x, y }             // 纯数据结构，自动生成 Point(x, y)
 fun dist2(p) { return p.x * p.x + p.y * p.y; }
 
 print("len =", len(a));           // 内建：print input len int float str push pop
-let name = input("name? ");       // 读取一行输入
+let name = input("name? ");       // 读取一行输入；遇 EOF 返回 null
 ```
 
-运算要点：`/` 永远得到浮点数（`3 / 2 == 1.5`）；`%` 同 Python（余数随除数）；只有 `false` 和 `null` 为假（`0`、`""`、空数组都为真）；没有 `++`、`+=`，自增写成 `i = i + 1`。
+运算要点：`/` 永远得到浮点数（`3 / 2 == 1.5`）；`%` 同 Python（余数随除数）；只有 `false` 和 `null` 为假（`0`、`""`、空数组都为真）；没有 `++`、`+=`，自增写成 `i = i + 1`；`and`/`or` 短路且结果恒为布尔。
 
 ## 自带示例
 
@@ -73,6 +73,16 @@ python -m gb examples/fibonacci.gb    # 数组 + push + 区间 for
   ```
 
   语法错误还会指出实际遇到的 token（文件末尾时显示「文件末尾」）。
+
+- 运行时错误发生在函数调用中时，会在下方附加最近至多 5 帧调用栈（由近及远）：
+
+  ```
+  运行时错误（第 1 行，第 22 列）：除数为零
+  fun inner() { return 1 / 0; }
+                     ^
+    在 inner（第 2 行，第 22 列）调用
+    在 outer（第 3 行，第 7 列）调用
+  ```
 
 - 常见坑：漏分号；给未 `let` 的变量赋值；用浮点数当下标；省略 `let` 的区间 for 变量必须是外层已声明的变量。
 - `fun`/`struct` 声明会被提升到所在作用域开头，因此可以前向调用和相互递归；但 `let` 不提升。内建函数名（如 `len`）可用同名声明遮蔽，不能裸赋值改写。
