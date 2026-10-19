@@ -104,7 +104,7 @@ def _input(args):
     sys.stdout.flush()
     line = sys.stdin.readline()
     if line == "":
-        return ""  # EOF
+        return None  # v0.3：EOF 返回 null，与空行 "" 区分
     if line.endswith("\n"):
         line = line[:-1]
     return line

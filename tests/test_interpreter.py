@@ -336,6 +336,13 @@ class TestBuiltins(unittest.TestCase):
         src = 'let name = input("name? "); print("hi " + name);'
         self.assertEqual(run(src, stdin="Bob\n"), "name? hi Bob\n")
 
+    def test_input_eof_returns_null(self):
+        # v0.3：EOF 返回 null，区别于空行 ""
+        self.assertEqual(run("print(input());"), "null\n")
+        self.assertEqual(run("print(input());", stdin="\n"), "\n")
+        src = "let x = input();\nif (x == null) { print(\"eof\"); }"
+        self.assertEqual(run(src), "eof\n")
+
 
 class TestErrorLocations(unittest.TestCase):
     def test_runtime_error_has_line_and_col(self):
