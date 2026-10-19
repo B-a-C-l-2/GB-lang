@@ -62,6 +62,17 @@ class TestParser(unittest.TestCase):
         fun = program.statements[1]
         self.assertEqual(fun.params, ["a", "b"])
 
+    def test_node_columns(self):
+        node = parse_one("  let x = 1;")
+        self.assertEqual((node.line, node.col), (1, 3))  # let
+        self.assertEqual((node.value.line, node.value.col), (1, 11))  # 1
+        call = parse_one("print(1 + 2);").expression
+        self.assertEqual((call.line, call.col), (1, 1))   # 调用起点 print
+        add = call.args[0]
+        self.assertEqual((add.line, add.col), (1, 7))     # 左操作数
+        self.assertEqual(add.left.col, 7)
+        self.assertEqual(add.right.col, 11)
+
     def test_errors(self):
         for text in (
             "let x = 1",          # 缺分号
@@ -72,6 +83,21 @@ class TestParser(unittest.TestCase):
         ):
             with self.assertRaises(ParseError):
                 parse(text)
+
+    def test_error_reports_column_and_actual_token(self):
+        try:
+            parse("print(1 + 2;")
+        except ParseError as e:
+            self.assertEqual((e.line, e.col), (1, 12))  # 分号位置
+            self.assertEqual(e.got, '";"')
+        else:
+            self.fail("应抛出 ParseError")
+        try:
+            parse("let x = 1; x = ")
+        except ParseError as e:
+            self.assertEqual(e.got, "文件末尾")
+        else:
+            self.fail("应抛出 ParseError")
 
     def test_if_else_chain(self):
         node = parse_one("if (a) { } else if (b) { } else { }")
