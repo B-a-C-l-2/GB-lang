@@ -1,11 +1,41 @@
 """GB 命令行入口：python -m gb <file.gb>"""
 
 import sys
+import unicodedata
 
 from gb.lexer import LexerError
 from gb.parser import parse, ParseError
 from gb.interpreter import Interpreter, make_global_env
 from gb.builtins import GbError
+
+
+def _pointer_line(src_line, col):
+    """v0.3：^ 按终端显示宽度对齐——出错列前的窄字符计 1 空格，
+    东亚宽字符计 2 空格，Tab 展开到下一个 8 列制表位。
+    （首行列号仍按字符数统计，Tab 计 1 列。）"""
+    parts = []
+    width = 0
+    for ch in src_line[:col - 1]:
+        if ch == "\t":
+            n = 8 - width % 8
+            parts.append(" " * n)
+            width += n
+        elif unicodedata.east_asian_width(ch) in ("W", "F"):
+            parts.append("  ")
+            width += 2
+        else:
+            parts.append(" ")
+            width += 1
+    return "".join(parts) + "^"
+
+
+def _format_frames(frames):
+    """v0.3：由近及远打印最近至多 5 帧调用栈；无帧时返回空串。"""
+    if not frames:
+        return ""
+    lines = [f"  在 {name}（第 {line} 行，第 {col} 列）调用"
+             for name, line, col in reversed(frames[-5:])]
+    return "\n" + "\n".join(lines)
 
 
 def _format_error(kind, message, source, line, col, got=None):
@@ -21,9 +51,7 @@ def _format_error(kind, message, source, line, col, got=None):
     lines = source.splitlines()
     if 1 <= line <= len(lines):
         src_line = lines[line - 1]
-        # 列按码点计；Tab/宽字符可能错位（见 design.md 已知限制）
-        pointer = " " * (col - 1) + "^"
-        text += "\n" + src_line + "\n" + pointer
+        text += "\n" + src_line + "\n" + _pointer_line(src_line, col)
     return text
 
 
@@ -54,11 +82,14 @@ def main(argv):
     try:
         interpreter.run(module)
     except GbError as e:
-        print(_format_error("运行时", e.message, source, e.line, e.col),
-              file=sys.stderr)
+        text = _format_error("运行时", e.message, source, e.line, e.col)
+        text += _format_frames(getattr(e, "gb_frames", None))
+        print(text, file=sys.stderr)
         return 1
-    except RecursionError:
-        print("运行时错误：调用栈过深（可能存在无限递归）", file=sys.stderr)
+    except RecursionError as e:
+        text = "运行时错误：调用栈过深（可能存在无限递归）"
+        text += _format_frames(getattr(e, "gb_frames", None))
+        print(text, file=sys.stderr)
         return 1
     return 0
 

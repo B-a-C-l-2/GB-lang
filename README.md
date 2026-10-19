@@ -42,7 +42,7 @@ fun add(a, b) { return a + b; }   // 函数（声明提升：支持前向调用�
 struct Point { x, y }             // 纯数据结构，自动生成 Point(x, y)
 fun dist2(p) { return p.x * p.x + p.y * p.y; }
 
-print("len =", len(a));           // 内建：print input len int float str push
+print("len =", len(a));           // 内建：print input len int float str push pop
 let name = input("name? ");       // 读取一行输入
 ```
 

@@ -91,15 +91,26 @@ class TestTruthiness(unittest.TestCase):
         """
         self.assertEqual(run(src), "t t t f f\n")
 
-    def test_logical_returns_operands_and_short_circuits(self):
-        # GB 中 0 为真，故 0 or "x" 取 0
-        self.assertEqual(run('print(0 or "x", 1 and 2);'), "0 2\n")
+    def test_logical_returns_bool_and_short_circuits(self):
+        # v0.3：and/or 结果恒为布尔；GB 中 0、"" 皆为真
+        self.assertEqual(run('print(0 or "x", 1 and 2);'), "true true\n")
+        self.assertEqual(run("print(null or false);"), "false\n")
         src = """
         fun boom() { return 1 / 0; }
         print(true or boom());
         print(false and boom());
         """
         self.assertEqual(run(src), "true\nfalse\n")
+
+
+class TestBreakContinueBoundary(unittest.TestCase):
+    def test_break_cannot_escape_function(self):
+        e = run_error("fun f() { break; }\nwhile (true) { f(); }")
+        self.assertIn("break", e.message)
+
+    def test_continue_cannot_escape_function(self):
+        e = run_error("fun f() { continue; }\nwhile (true) { f(); }")
+        self.assertIn("continue", e.message)
 
 
 class TestIndexAndSlice(unittest.TestCase):
@@ -325,6 +336,21 @@ class TestBuiltins(unittest.TestCase):
         src = 'let name = input("name? "); print("hi " + name);'
         self.assertEqual(run(src, stdin="Bob\n"), "name? hi Bob\n")
 
+    def test_pop(self):
+        src = "let a = [1, 2, 3];\nprint(pop(a));\nprint(a);"
+        self.assertEqual(run(src), "3\n[1, 2]\n")
+
+    def test_pop_errors(self):
+        run_error("pop([]);")
+        run_error("pop(1);")
+
+    def test_input_eof_returns_null(self):
+        # v0.3：EOF 返回 null，区别于空行 ""
+        self.assertEqual(run("print(input());"), "null\n")
+        self.assertEqual(run("print(input());", stdin="\n"), "\n")
+        src = "let x = input();\nif (x == null) { print(\"eof\"); }"
+        self.assertEqual(run(src), "eof\n")
+
 
 class TestErrorLocations(unittest.TestCase):
     def test_runtime_error_has_line_and_col(self):
@@ -339,6 +365,27 @@ class TestErrorLocations(unittest.TestCase):
     def test_builtin_error_backfilled_to_call_site(self):
         e = run_error('print(len(1));')
         self.assertEqual((e.line, e.col), (1, 7))  # len 调用起点
+
+
+class TestCallStackFrames(unittest.TestCase):
+    def test_frames_snapshot_innermost_first(self):
+        src = ("fun inner() { return 1 / 0; }\n"
+               "fun outer() { return inner(); }\n"
+               "print(outer());")
+        e = run_error(src)
+        # 帧按调用顺序入栈：outer 先、inner 后
+        self.assertEqual(e.gb_frames,
+                         [("outer", 3, 7), ("inner", 2, 22)])
+
+    def test_no_frames_at_top_level(self):
+        e = run_error("print(1 / 0);")
+        self.assertIsNone(getattr(e, "gb_frames", None))
+
+    def test_frames_via_builtin_error(self):
+        src = ("fun f() { return len(1); }\n"
+               "print(f());")
+        e = run_error(src)
+        self.assertEqual(e.gb_frames, [("f", 2, 7)])
 
 
 class TestEndToEnd(unittest.TestCase):

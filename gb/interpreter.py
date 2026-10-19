@@ -119,6 +119,8 @@ class Interpreter:
         self.env = global_env if global_env is not None else make_global_env()
         self.loop_depth = 0
         self.function_depth = 0
+        # 调用栈帧：(函数名, 调用点行, 调用点列)，用于错误诊断（v0.3）
+        self.call_stack = []
 
     def run(self, module):
         self._hoist(module.statements, self.env)
@@ -307,11 +309,12 @@ class Interpreter:
             return self._binary(node, env)
 
         if t is ast.Logical:
+            # v0.3：and/or 短路求值，结果恒为布尔（借鉴 Java）
             left = self._eval(node.left, env)
             if node.op == "and":
-                return left if not _truthy(left) else self._eval(
-                    node.right, env)
-            return left if _truthy(left) else self._eval(node.right, env)
+                return _truthy(left) and _truthy(
+                    self._eval(node.right, env))
+            return _truthy(left) or _truthy(self._eval(node.right, env))
 
         if t is ast.Call:
             return self._call(node, env)
@@ -450,13 +453,24 @@ class Interpreter:
             call_env = Environment(callee.closure)
             for name, value in zip(callee.params, args):
                 call_env.declare(name, value)
+            # 函数边界重置 loop_depth：break/continue 不能跨函数逃逸
+            saved_loop_depth = self.loop_depth
+            self.loop_depth = 0
             self.function_depth += 1
+            self.call_stack.append((callee.name, node.line, node.col))
             try:
                 self._exec_body(callee.body, call_env)
             except _Return as ret:
                 return ret.value
+            except (GbError, RecursionError) as e:
+                # 最内层帧快照完整调用栈，供入口打印诊断（v0.3）
+                if getattr(e, "gb_frames", None) is None:
+                    e.gb_frames = list(self.call_stack)
+                raise
             finally:
                 self.function_depth -= 1
+                self.loop_depth = saved_loop_depth
+                self.call_stack.pop()
             return None
 
         if isinstance(callee, Builtin):

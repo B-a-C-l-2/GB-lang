@@ -1,0 +1,36 @@
+# -*- coding: utf-8 -*-
+"""入口层错误格式测试：^ 指示行按显示宽度对齐（v0.3）。"""
+
+import unittest
+
+from gb.__main__ import _format_error, _pointer_line
+
+
+class TestPointerLine(unittest.TestCase):
+    def test_narrow(self):
+        self.assertEqual(_pointer_line("print(a[5]);", 7), "      ^")
+
+    def test_wide_chars(self):
+        # 第 10 列前是 9 个窄字符；第 12 列前含 中/文 两个宽字符（各计 2）
+        self.assertEqual(_pointer_line('let s = "中文";', 10),
+                         " " * 9 + "^")
+        self.assertEqual(_pointer_line('let s = "中文";', 12),
+                         " " * (9 + 2 + 2) + "^")
+
+    def test_tab_expands(self):
+        # Tab 展开到 8 列制表位
+        self.assertEqual(_pointer_line("\tlet x = 1;", 2),
+                         " " * 8 + "^")
+        self.assertEqual(_pointer_line("\tlet x = 1;", 9),
+                         " " * (8 + 7) + "^")
+
+    def test_format_error_uses_width(self):
+        src = 'let s = "中文";'
+        text = _format_error("词法", "测试", src, 1, 13)
+        # 第 13 列是行尾 ; 之后？ 行共 13 字符；出错列前 12 字符：
+        # 8 窄 + 2 宽(4) = 12 宽度
+        self.assertEqual(text.splitlines()[-1], " " * 14 + "^")
+
+
+if __name__ == "__main__":
+    unittest.main()
