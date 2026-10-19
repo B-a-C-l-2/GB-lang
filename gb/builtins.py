@@ -5,12 +5,13 @@ import sys
 
 
 class GbError(Exception):
-    """GB 运行时错误。line 为 0 时表示错误位置未知。"""
+    """GB 运行时错误。line/col 为 0 时表示错误位置未知。"""
 
-    def __init__(self, message, line=0):
+    def __init__(self, message, line=0, col=0):
         super().__init__(message)
         self.message = message
         self.line = line
+        self.col = col
 
 
 class Function:
@@ -50,14 +51,15 @@ class Builtin:
         self.max_arity = max_arity
         self.fn = fn
 
-    def check_arity(self, n, line):
+    def check_arity(self, n, line, col):
         too_many = self.max_arity is not None and n > self.max_arity
         if n < self.min_arity or too_many:
             if self.min_arity == self.max_arity:
                 expect = f"需要 {self.min_arity} 个参数"
             else:
                 expect = f"需要 {self.min_arity}-{self.max_arity} 个参数"
-            raise GbError(f"内建函数 {self.name} {expect}，实际 {n} 个", line)
+            raise GbError(f"内建函数 {self.name} {expect}，实际 {n} 个",
+                          line, col)
 
 
 def display(v):

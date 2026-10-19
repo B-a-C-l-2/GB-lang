@@ -264,6 +264,21 @@ class TestBuiltins(unittest.TestCase):
         self.assertEqual(run(src, stdin="Bob\n"), "name? hi Bob\n")
 
 
+class TestErrorLocations(unittest.TestCase):
+    def test_runtime_error_has_line_and_col(self):
+        # 下标越界位置取对象起点 a
+        e = run_error("let a = [1];\nprint(a[5]);")
+        self.assertEqual((e.line, e.col), (2, 7))
+
+    def test_undeclared_var_points_at_name(self):
+        e = run_error("print(missing);")
+        self.assertEqual((e.line, e.col), (1, 7))
+
+    def test_builtin_error_backfilled_to_call_site(self):
+        e = run_error('print(len(1));')
+        self.assertEqual((e.line, e.col), (1, 7))  # len 调用起点
+
+
 class TestEndToEnd(unittest.TestCase):
     def test_design_example(self):
         src = """

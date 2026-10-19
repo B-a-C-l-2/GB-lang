@@ -13,27 +13,28 @@ class Environment:
         self.vars = {}
         self.parent = parent
 
-    def declare(self, name, value, line=0):
+    def declare(self, name, value, line=0, col=0):
         if name in self.vars:
-            raise GbError(f"变量 {name} 在当前作用域重复声明", line)
+            raise GbError(
+                f"变量 {name} 在当前作用域重复声明", line, col)
         self.vars[name] = value
 
-    def get(self, name, line=0):
+    def get(self, name, line=0, col=0):
         env = self
         while env is not None:
             if name in env.vars:
                 return env.vars[name]
             env = env.parent
-        raise GbError(f"变量 {name} 未定义", line)
+        raise GbError(f"变量 {name} 未定义", line, col)
 
-    def assign(self, name, value, line=0):
+    def assign(self, name, value, line=0, col=0):
         env = self
         while env is not None:
             if name in env.vars:
                 env.vars[name] = value
                 return
             env = env.parent
-        raise GbError(f"变量 {name} 未定义，无法赋值", line)
+        raise GbError(f"变量 {name} 未定义，无法赋值", line, col)
 
 
 def make_global_env():
@@ -82,7 +83,7 @@ def _gb_equal(a, b):
     return a is b
 
 
-def _gb_compare(a, b, line):
+def _gb_compare(a, b, line, col):
     """有序比较，返回 -1/0/1；不可比较则运行时错误。"""
     if _is_num(a) and _is_num(b):
         return (a > b) - (a < b)
@@ -90,11 +91,11 @@ def _gb_compare(a, b, line):
         return (a > b) - (a < b)
     if isinstance(a, list) and isinstance(b, list):
         for x, y in zip(a, b):
-            c = _gb_compare(x, y, line)
+            c = _gb_compare(x, y, line, col)
             if c != 0:
                 return c
         return (len(a) > len(b)) - (len(a) < len(b))
-    raise GbError("这两个类型的值不能使用大小比较", line)
+    raise GbError("这两个类型的值不能使用大小比较", line, col)
 
 
 class Interpreter:
@@ -113,17 +114,18 @@ class Interpreter:
         t = type(node)
 
         if t is ast.Let:
-            env.declare(node.name, self._eval(node.value, env), node.line)
+            env.declare(node.name, self._eval(node.value, env),
+                        node.line, node.col)
 
         elif t is ast.Fun:
             env.declare(node.name,
                         Function(node.name, node.params, node.body,
                                  env, node.line),
-                        node.line)
+                        node.line, node.col)
 
         elif t is ast.Struct:
             env.declare(node.name, StructDef(node.name, node.fields,
-                                             node.line), node.line)
+                                             node.line), node.line, node.col)
 
         elif t is ast.Block:
             self._exec_body(node.statements, env)
@@ -172,12 +174,12 @@ class Interpreter:
             end = self._eval(iv.end, env)
             if not _is_num(start) or isinstance(start, float) \
                     or not _is_num(end) or isinstance(end, float):
-                raise GbError("区间端点必须是 int", iv.line)
+                raise GbError("区间端点必须是 int", iv.line, iv.col)
             lo = start if iv.left_inclusive else start + 1
             hi = end if iv.right_inclusive else end - 1
 
             loop_env = Environment(env)
-            loop_env.declare(node.name, lo)
+            loop_env.declare(node.name, lo, node.name_line, node.name_col)
             i = lo
             self.loop_depth += 1
             try:
@@ -195,19 +197,20 @@ class Interpreter:
 
         elif t is ast.Return:
             if self.function_depth == 0:
-                raise GbError("return 只能出现在函数中", node.line)
+                raise GbError("return 只能出现在函数中", node.line, node.col)
             value = None if node.value is None else self._eval(
                 node.value, env)
             raise _Return(value)
 
         elif t is ast.Break:
             if self.loop_depth == 0:
-                raise GbError("break 只能出现在循环中", node.line)
+                raise GbError("break 只能出现在循环中", node.line, node.col)
             raise _Break()
 
         elif t is ast.Continue:
             if self.loop_depth == 0:
-                raise GbError("continue 只能出现在循环中", node.line)
+                raise GbError("continue 只能出现在循环中",
+                              node.line, node.col)
             raise _Continue()
 
         elif t is ast.ExprStmt:
@@ -238,13 +241,14 @@ class Interpreter:
             return [self._eval(e, env) for e in node.elements]
 
         if t is ast.Var:
-            value = env.get(node.name, node.line)
+            value = env.get(node.name, node.line, node.col)
             if not as_callee and isinstance(
                     value, (Function, Builtin, StructDef)):
                 kind = ("struct" if isinstance(value, StructDef)
                         else "函数")
                 raise GbError(
-                    f"{node.name} 是{kind}，不能作为值传递或赋值", node.line)
+                    f"{node.name} 是{kind}，不能作为值传递或赋值",
+                    node.line, node.col)
             return value
 
         if t is ast.Assign:
@@ -254,7 +258,8 @@ class Interpreter:
             v = self._eval(node.operand, env)
             if node.op == "-":
                 if not _is_num(v):
-                    raise GbError("一元减号只能用于数值", node.line)
+                    raise GbError("一元减号只能用于数值",
+                                  node.line, node.col)
                 return -v
             return not _truthy(v)
 
@@ -281,10 +286,11 @@ class Interpreter:
             obj = self._eval(node.object, env)
             if not isinstance(obj, Instance):
                 raise GbError("只有 struct 实例能使用 . 访问字段",
-                              node.line)
+                              node.line, node.col)
             if node.name not in obj.struct.fields:
                 raise GbError(
-                    f"{obj.struct.name} 没有字段 {node.name}", node.line)
+                    f"{obj.struct.name} 没有字段 {node.name}",
+                    node.line, node.col)
             return obj.values[node.name]
 
         raise GbError(f"未知表达式 {type(node).__name__}")
@@ -293,82 +299,87 @@ class Interpreter:
         op = node.op
         a = self._eval(node.left, env)
         b = self._eval(node.right, env)
-        line = node.line
+        line, col = node.line, node.col
 
         if op == "+":
             if isinstance(a, str) and isinstance(b, str):
                 return a + b
             if _is_num(a) and _is_num(b):
                 return a + b
-            raise GbError("+ 只能用于数值或两个字符串", line)
+            raise GbError("+ 只能用于数值或两个字符串", line, col)
         if op in ("-", "*"):
             if _is_num(a) and _is_num(b):
                 return a - b if op == "-" else a * b
-            raise GbError(f"{op} 只能用于数值", line)
+            raise GbError(f"{op} 只能用于数值", line, col)
         if op == "/":
             if _is_num(a) and _is_num(b):
                 if b == 0:
-                    raise GbError("除数为零", line)
+                    raise GbError("除数为零", line, col)
                 return a / b
-            raise GbError("/ 只能用于数值", line)
+            raise GbError("/ 只能用于数值", line, col)
         if op == "%":
             if _is_num(a) and _is_num(b):
                 if b == 0:
-                    raise GbError("对零取模", line)
+                    raise GbError("对零取模", line, col)
                 return a % b
-            raise GbError("% 只能用于数值", line)
+            raise GbError("% 只能用于数值", line, col)
         if op == "==":
             return _gb_equal(a, b)
         if op == "!=":
             return not _gb_equal(a, b)
         if op in ("<", "<=", ">", ">="):
-            c = _gb_compare(a, b, line)
+            c = _gb_compare(a, b, line, col)
             return {"<": c < 0, "<=": c <= 0,
                     ">": c > 0, ">=": c >= 0}[op]
-        raise GbError(f"未知运算符 {op}", line)
+        raise GbError(f"未知运算符 {op}", line, col)
 
     def _assign(self, node, env):
         target = node.target
         value = self._eval(node.value, env)
         t = type(target)
         if t is ast.Var:
-            env.assign(target.name, value, target.line)
+            env.assign(target.name, value, target.line, target.col)
         elif t is ast.Index:
             obj = self._eval(target.object, env)
             idx = self._eval(target.index, env)
             if isinstance(obj, str):
-                raise GbError("字符串不可变，不能修改其字符", target.line)
+                raise GbError("字符串不可变，不能修改其字符",
+                              target.line, target.col)
             if not isinstance(obj, list):
-                raise GbError("只能对数组元素赋值", target.line)
+                raise GbError("只能对数组元素赋值",
+                              target.line, target.col)
             if not _is_num(idx) or isinstance(idx, float):
-                raise GbError("数组下标必须是 int", target.line)
+                raise GbError("数组下标必须是 int",
+                              target.line, target.col)
             if not 0 <= idx < len(obj):
-                raise GbError("数组下标越界", target.line)
+                raise GbError("数组下标越界", target.line, target.col)
             obj[idx] = value
         elif t is ast.Get:
             obj = self._eval(target.object, env)
             if not isinstance(obj, Instance):
-                raise GbError("只能给 struct 实例的字段赋值", target.line)
+                raise GbError("只能给 struct 实例的字段赋值",
+                              target.line, target.col)
             if target.name not in obj.struct.fields:
                 raise GbError(
-                    f"{obj.struct.name} 没有字段 {target.name}", target.line)
+                    f"{obj.struct.name} 没有字段 {target.name}",
+                    target.line, target.col)
             obj.values[target.name] = value
         else:
-            raise GbError("赋值目标非法", node.line)
+            raise GbError("赋值目标非法", node.line, node.col)
         return value
 
-    def _check_int_index(self, idx, line):
+    def _check_int_index(self, idx, line, col):
         if not _is_num(idx) or isinstance(idx, float):
-            raise GbError("下标必须是 int", line)
+            raise GbError("下标必须是 int", line, col)
 
     def _index(self, node, env):
         obj = self._eval(node.object, env)
         idx = self._eval(node.index, env)
         if not isinstance(obj, (list, str)):
-            raise GbError("只有数组和字符串可以索引", node.line)
-        self._check_int_index(idx, node.line)
+            raise GbError("只有数组和字符串可以索引", node.line, node.col)
+        self._check_int_index(idx, node.line, node.col)
         if not 0 <= idx < len(obj):
-            raise GbError("下标越界", node.line)
+            raise GbError("下标越界", node.line, node.col)
         return obj[idx]
 
     def _slice(self, node, env):
@@ -376,9 +387,9 @@ class Interpreter:
         start = self._eval(node.start, env)
         end = self._eval(node.end, env)
         if not isinstance(obj, (list, str)):
-            raise GbError("只有数组和字符串可以切片", node.line)
-        self._check_int_index(start, node.line)
-        self._check_int_index(end, node.line)
+            raise GbError("只有数组和字符串可以切片", node.line, node.col)
+        self._check_int_index(start, node.line, node.col)
+        self._check_int_index(end, node.line, node.col)
         length = len(obj)
         lo = min(max(start, 0), length)
         hi = min(max(end, 0), length)
@@ -395,7 +406,7 @@ class Interpreter:
             if n != len(callee.params):
                 raise GbError(
                     f"函数 {callee.name} 需要 {len(callee.params)} 个参数，"
-                    f"实际 {n} 个", node.line)
+                    f"实际 {n} 个", node.line, node.col)
             call_env = Environment(callee.closure)
             for name, value in zip(callee.params, args):
                 call_env.declare(name, value)
@@ -409,19 +420,20 @@ class Interpreter:
             return None
 
         if isinstance(callee, Builtin):
-            callee.check_arity(n, node.line)
+            callee.check_arity(n, node.line, node.col)
             try:
                 return callee.fn(args)
             except GbError as e:
                 if not e.line:
                     e.line = node.line
+                    e.col = node.col
                 raise
 
         if isinstance(callee, StructDef):
             if n != len(callee.fields):
                 raise GbError(
                     f"构造 {callee.name} 需要 {len(callee.fields)} 个参数，"
-                    f"实际 {n} 个", node.line)
+                    f"实际 {n} 个", node.line, node.col)
             return Instance(callee, dict(zip(callee.fields, args)))
 
-        raise GbError("该值不是可调用对象", node.line)
+        raise GbError("该值不是可调用对象", node.line, node.col)
