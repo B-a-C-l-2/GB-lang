@@ -307,11 +307,12 @@ class Interpreter:
             return self._binary(node, env)
 
         if t is ast.Logical:
+            # v0.3：and/or 短路求值，结果恒为布尔（借鉴 Java）
             left = self._eval(node.left, env)
             if node.op == "and":
-                return left if not _truthy(left) else self._eval(
-                    node.right, env)
-            return left if _truthy(left) else self._eval(node.right, env)
+                return _truthy(left) and _truthy(
+                    self._eval(node.right, env))
+            return _truthy(left) or _truthy(self._eval(node.right, env))
 
         if t is ast.Call:
             return self._call(node, env)

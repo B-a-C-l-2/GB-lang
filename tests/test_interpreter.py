@@ -91,9 +91,10 @@ class TestTruthiness(unittest.TestCase):
         """
         self.assertEqual(run(src), "t t t f f\n")
 
-    def test_logical_returns_operands_and_short_circuits(self):
-        # GB 中 0 为真，故 0 or "x" 取 0
-        self.assertEqual(run('print(0 or "x", 1 and 2);'), "0 2\n")
+    def test_logical_returns_bool_and_short_circuits(self):
+        # v0.3：and/or 结果恒为布尔；GB 中 0、"" 皆为真
+        self.assertEqual(run('print(0 or "x", 1 and 2);'), "true true\n")
+        self.assertEqual(run("print(null or false);"), "false\n")
         src = """
         fun boom() { return 1 / 0; }
         print(true or boom());
