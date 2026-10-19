@@ -54,10 +54,15 @@ class Parser:
             return self._advance()
         return None
 
+    # 期望不符合时的用户可见名称：标点/关键字按词面，token 类型用中文
+    _EXPECTED_DISPLAY = {"IDENT": "标识符", "NUMBER": "数值",
+                         "STRING": "字符串"}
+
     def _expect(self, type):
         if self._check(type):
             return self._advance()
-        raise ParseError(self._current(), f'此处应为 "{type}"')
+        expected = self._EXPECTED_DISPLAY.get(type, f'"{type}"')
+        raise ParseError(self._current(), f"此处应为 {expected}")
 
     # ---------- 入口 ----------
 
