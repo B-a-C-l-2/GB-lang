@@ -363,6 +363,13 @@ class TestBuiltins(unittest.TestCase):
                     'print(float("1_0.5"));'):
             run_error(src)
 
+    def test_numeric_strings_reject_trailing_newline(self):
+        # v0.4.3：$ 会匹配末尾换行之前，导致 int("12\n") 被误接受
+        for src in ('print(int("12\\n"));',
+                    'print(float("2.5\\n"));'):
+            e = run_error(src)
+            self.assertIn("无法将", e.message)
+
     def test_input(self):
         src = 'let name = input("name? "); print("hi " + name);'
         self.assertEqual(run(src, stdin="Bob\n"), "name? hi Bob\n")

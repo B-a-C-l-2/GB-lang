@@ -5,9 +5,10 @@ import re
 import sys
 
 # v0.3.1：int/float 的字符串解析严格匹配 GB 数值字面量形式（可选前导 -），
-# 拒绝 Python 扩展形式（全角数字、下划线、空白、+ 号、nan/inf、科学计数法）
-_INT_TEXT = re.compile(r"-?[0-9]+$")
-_FLOAT_TEXT = re.compile(r"-?([0-9]+|[0-9]+\.[0-9]+)$")
+# 拒绝 Python 扩展形式（全角数字、下划线、空白、+ 号、nan/inf、科学计数法）。
+# v0.4.3：用 \Z 而非 $，后者会匹配末尾换行之前，误放行 "12\n"。
+_INT_TEXT = re.compile(r"-?[0-9]+\Z")
+_FLOAT_TEXT = re.compile(r"-?([0-9]+|[0-9]+\.[0-9]+)\Z")
 
 
 class GbError(Exception):
