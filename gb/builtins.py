@@ -161,13 +161,21 @@ def _to_float(args):
         raise GbError("无法将 bool 转换为 float")
     if isinstance(v, (int, float)):
         try:
-            return float(v)
+            f = float(v)
         except OverflowError:
             # v0.4.1：超大 int 超出 float64 范围
             raise GbError("整数过大，无法转换为 float") from None
+        # v0.4.3：inf/nan 在语言中不可构造，防御性拒绝
+        if not math.isfinite(f):
+            raise GbError("浮点溢出")
+        return f
     if isinstance(v, str):
         if _FLOAT_TEXT.match(v):
-            return float(v)
+            f = float(v)
+            # v0.4.3：400 位以上的数字串会静默溢出为 inf
+            if not math.isfinite(f):
+                raise GbError("浮点溢出")
+            return f
         raise GbError(f"无法将 {display(v)} 转换为 float")
     raise GbError(f"无法将 {display(v)} 转换为 float")
 

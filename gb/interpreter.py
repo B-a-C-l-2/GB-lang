@@ -322,7 +322,9 @@ class Interpreter:
         t = type(node)
 
         if t is ast.Number:
-            return node.value
+            # v0.4.3：超大浮点字面量会静默解析为 inf，与「inf/nan 不可
+            # 构造」矛盾；按运行时错误报出，位置取字面量起点
+            return _check_finite(node.value, node.line, node.col)
         if t is ast.String:
             return node.value
         if t is ast.Bool:
