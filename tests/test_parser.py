@@ -74,6 +74,14 @@ class TestParser(unittest.TestCase):
         self.assertIsInstance(
             parse_one("for (i = 0; i < 2; i = i + 1) { }"), ast.ForC)
 
+    def test_for_in_interval_shape_with_postfix_is_expression(self):
+        # v0.4.3：区间形状后接后缀/运算符时按一般表达式解析
+        node = parse_one("for (let x in [1, 2][0:1]) { }")
+        self.assertIsInstance(node, ast.ForIn)
+        self.assertIsInstance(node.iterable, ast.Slice)
+        node = parse_one("for (let x in [1, 2] + 3) { }")
+        self.assertIsInstance(node.iterable, ast.Binary)
+
     def test_c_style_for(self):
         node = parse_one("for (let i = 0; i < 3; i = i + 1) { }")
         self.assertIsInstance(node, ast.ForC)

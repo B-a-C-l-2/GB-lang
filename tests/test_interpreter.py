@@ -524,6 +524,16 @@ class TestArrayForIn(unittest.TestCase):
         # [5, 3] 是区间：5..3 为空，零次循环；若是数组遍历则会打印 5、3
         self.assertEqual(run("for (let x in [5, 3]) { print(x); }"), "")
 
+    def test_interval_shape_with_postfix_is_expression(self):
+        # v0.4.3：后接切片时按表达式求值，遍历切片结果
+        self.assertEqual(run("for (let x in [1, 2][0:2]) { print(x); }"),
+                         "1\n2\n")
+
+    def test_interval_shape_with_operator_is_expression(self):
+        # v0.4.3：不再误报语法错误，按表达式求值后在 + 处报类型错误
+        e = run_error("for (let x in [1, 2] + 3) { }")
+        self.assertIn("+ 只能用于数值或两个字符串", e.message)
+
     def test_three_element_literal_is_array(self):
         # 三元素不是区间形状，按数组遍历
         self.assertEqual(run("for (let x in [5, 3, 1]) { print(x); }"),
