@@ -77,6 +77,12 @@ def main(argv):
         print(_format_error("语法", e.message, source, e.line, e.col, e.got),
               file=sys.stderr)
         return 1
+    except RecursionError:
+        # v0.3.1：解析阶段深层嵌套（约百层括号/数组）耗尽 Python 调用栈，
+        # 与运行时「调用栈过深」一样属无位置错误，不输出 traceback
+        print("语法错误：嵌套过深（可能存在过深的括号或数组嵌套）",
+              file=sys.stderr)
+        return 1
 
     interpreter = Interpreter(make_global_env())
     try:

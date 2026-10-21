@@ -1,9 +1,13 @@
 # -*- coding: utf-8 -*-
 """入口层错误格式测试：^ 指示行按显示宽度对齐（v0.3）。"""
 
+import contextlib
+import io
+import os
+import tempfile
 import unittest
 
-from gb.__main__ import _format_error, _pointer_line
+from gb.__main__ import _format_error, _pointer_line, main
 
 
 class TestPointerLine(unittest.TestCase):
@@ -30,6 +34,25 @@ class TestPointerLine(unittest.TestCase):
         # 第 13 列是行尾 ; 之后？ 行共 13 字符；出错列前 12 字符：
         # 8 窄 + 2 宽(4) = 12 宽度
         self.assertEqual(text.splitlines()[-1], " " * 14 + "^")
+
+
+class TestParseRecursion(unittest.TestCase):
+    """v0.3.1：解析阶段深层嵌套报友好错误，不输出裸 traceback。"""
+
+    def test_deep_nesting_reports_friendly_error(self):
+        src = "print(" + "(" * 5000 + "1" + ")" * 5000 + ");"
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(src)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = main(["gb", path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(code, 1)
+        self.assertIn("嵌套过深", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
 
 
 if __name__ == "__main__":
