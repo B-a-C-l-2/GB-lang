@@ -392,6 +392,24 @@ class TestBuiltins(unittest.TestCase):
         # 循环内累乘溢出同样报错
         run_error("let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }")
 
+    def test_huge_int_mixed_float_overflow_is_error(self):
+        # v0.4.4：超大 int 参与 / 及与 float 混合运算时，宿主在
+        # int->float 转换处抛 OverflowError，统一报「浮点溢出」
+        big = "let n = " + "9" * 500 + ";\n"
+        for tail in ("print(n / 1);", "print(1.0 / n);",
+                     "print(n * 1.0);", "print(1.0 * n);",
+                     "print(n + 0.0);", "print(0.0 + n);",
+                     "print(n - 0.0);", "print(n % 1.0);",
+                     "print(1.0 % n);", "print(-n * 1.0);"):
+            e = run_error(big + tail)
+            self.assertIn("浮点溢出", e.message)
+        # 位置取表达式起点（左操作数 n）
+        e = run_error(big + "print(n / 1);")
+        self.assertEqual((e.line, e.col), (2, 7))
+        # 比较运算不经过 float 转换，不受影响
+        self.assertEqual(run(big + "print(n < 1.0, n == 1.0, n != 1.0);"),
+                         "false false true\n")
+
     def test_float_literal_overflow_is_error(self):
         # v0.4.3：浮点字面量溢出不得静默变成 inf
         e = run_error("let x = " + "1" + "0" * 400 + ".0;")

@@ -396,37 +396,43 @@ class Interpreter:
         b = self._eval(node.right, env)
         line, col = node.line, node.col
 
-        if op == "+":
-            if isinstance(a, str) and isinstance(b, str):
-                return a + b
-            if _is_num(a) and _is_num(b):
-                return _check_finite(a + b, line, col)
-            raise GbError("+ 只能用于数值或两个字符串", line, col)
-        if op in ("-", "*"):
-            if _is_num(a) and _is_num(b):
-                return _check_finite(a - b if op == "-" else a * b,
-                                     line, col)
-            raise GbError(f"{op} 只能用于数值", line, col)
-        if op == "/":
-            if _is_num(a) and _is_num(b):
-                if b == 0:
-                    raise GbError("除数为零", line, col)
-                return _check_finite(a / b, line, col)
-            raise GbError("/ 只能用于数值", line, col)
-        if op == "%":
-            if _is_num(a) and _is_num(b):
-                if b == 0:
-                    raise GbError("对零取模", line, col)
-                return _check_finite(a % b, line, col)
-            raise GbError("% 只能用于数值", line, col)
-        if op == "==":
-            return _gb_equal(a, b, line, col)
-        if op == "!=":
-            return not _gb_equal(a, b, line, col)
-        if op in ("<", "<=", ">", ">="):
-            c = _gb_compare(a, b, line, col)
-            return {"<": c < 0, "<=": c <= 0,
-                    ">": c > 0, ">=": c >= 0}[op]
+        # v0.4.4：超大 int 与 float 混合运算（含 int/int 的 /）时，宿主在
+        # int->float 转换处直接抛 OverflowError（结果还没产生，_check_finite
+        # 拦不到）；与 inf/nan 结果统一报「浮点溢出」
+        try:
+            if op == "+":
+                if isinstance(a, str) and isinstance(b, str):
+                    return a + b
+                if _is_num(a) and _is_num(b):
+                    return _check_finite(a + b, line, col)
+                raise GbError("+ 只能用于数值或两个字符串", line, col)
+            if op in ("-", "*"):
+                if _is_num(a) and _is_num(b):
+                    return _check_finite(a - b if op == "-" else a * b,
+                                         line, col)
+                raise GbError(f"{op} 只能用于数值", line, col)
+            if op == "/":
+                if _is_num(a) and _is_num(b):
+                    if b == 0:
+                        raise GbError("除数为零", line, col)
+                    return _check_finite(a / b, line, col)
+                raise GbError("/ 只能用于数值", line, col)
+            if op == "%":
+                if _is_num(a) and _is_num(b):
+                    if b == 0:
+                        raise GbError("对零取模", line, col)
+                    return _check_finite(a % b, line, col)
+                raise GbError("% 只能用于数值", line, col)
+            if op == "==":
+                return _gb_equal(a, b, line, col)
+            if op == "!=":
+                return not _gb_equal(a, b, line, col)
+            if op in ("<", "<=", ">", ">="):
+                c = _gb_compare(a, b, line, col)
+                return {"<": c < 0, "<=": c <= 0,
+                        ">": c > 0, ">=": c >= 0}[op]
+        except OverflowError:
+            raise GbError("浮点溢出", line, col) from None
         raise GbError(f"未知运算符 {op}", line, col)
 
     def _assign(self, node, env):
