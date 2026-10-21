@@ -47,7 +47,7 @@ print("len =", len(a));           // 内建：print input len int float str push
 let name = input("name? ");       // 读取一行输入；遇 EOF 返回 null
 ```
 
-运算要点：`/` 永远得到浮点数（`3 / 2 == 1.5`）；`%` 同 Python（余数随除数）；只有 `false` 和 `null` 为假（`0`、`""`、空数组都为真）；没有 `++`、`+=`，自增写成 `i = i + 1`；`and`/`or` 短路且结果恒为布尔；浮点运算溢出（结果为 inf/nan）报运行时错误「浮点溢出」（int 无溢出）。
+运算要点：`/` 永远得到浮点数（`3 / 2 == 1.5`）；`%` 同 Python（余数随除数）；只有 `false` 和 `null` 为假（`0`、`""`、空数组都为真）；没有 `++`、`+=`，自增写成 `i = i + 1`；`and`/`or` 短路且结果恒为布尔；浮点字面量、`float()` 转换或运算结果为 inf/nan 时报运行时错误「浮点溢出」（int 无溢出，与字符串互转也不受宿主位数限制）。
 
 ## 自带示例
 
@@ -55,6 +55,7 @@ let name = input("name? ");       // 读取一行输入；遇 EOF 返回 null
 python -m gb examples/example.gb      # 功能巡礼：struct、区间 for、切片
 python -m gb examples/fizzbuzz.gb     # FizzBuzz
 python -m gb examples/fibonacci.gb    # 数组 + push + 区间 for
+python -m gb examples/bubblesort.gb   # 交互式：输入长度与元素，输出排序结果（需要 stdin）
 ```
 
 ## 自己动手（建议练习）
@@ -86,11 +87,13 @@ python -m gb examples/fibonacci.gb    # 数组 + push + 区间 for
   ```
 
 - 常见坑：漏分号；给未 `let` 的变量赋值；用浮点数当下标；切片端点为负（`a[0:-1]` 报错，越界正值才会被钳制）；省略 `let` 的区间 for 变量必须是外层已声明的变量。
+- `not` 只作用于紧跟的操作数：`not a == b` 等价于 `(not a) == b`（与 Python 不同）；比较不能连写，`1 < 2 < 3` 会按 `(1 < 2) < 3` 报类型错误。
+- 浮点按宿主显示：`str` 可能输出 `1e+16` 这类科学计数法，而 `float("1e+16")` 按严格字面量规则报错——`str` 的浮点输出不保证能被 `float` 回读。
 - 数组字面量可写尾逗号（`[1, 2, ]` 合法），但函数调用的实参列表不行（`f(1, 2, )` 是语法错误）。
 - 数组遍历是**快照遍历**：`for (let x in a)` 循环前对 `a` 浅拷贝一份，循环体内的 `push`/`pop`/清空都不影响本轮遍历。注意 `in [a, b]` 两元素形状永远是区间——`for (let x in [1, 2])` 是区间 1..2，要遍历两元素数组须先赋给变量。
 - 禁止循环引用：`let a = []; push(a, a);` 之后对 `a` 做 `print`/`str`/`==`/大小比较会报「存在循环引用」。
 - `int`/`float` 解析字符串时只认 GB 数值字面量（可带前导 `-`）：`int("１２")`、`int("1_0")`、`int(" 12 ")`、`float("nan")`、`float("1e3")` 都是运行时错误。
-- 源文件必须是 UTF-8 编码（GBK 文件会在入口报「源文件不是有效的 UTF-8」）；`int(inf)`、`int(nan)`、把超大整数转 `float` 都是运行时错误。
+- 源文件必须是 UTF-8 编码，可带 BOM（GBK 文件会在入口报「源文件不是有效的 UTF-8」）；stdin 也按 UTF-8 解码（否则报「输入不是有效的 UTF-8」）；`int(inf)`、`int(nan)`、把超大整数转 `float` 都是运行时错误。
 - `fun`/`struct` 声明会被提升到所在作用域开头，因此可以前向调用和相互递归；但 `let` 不提升。内建函数名（如 `len`）可用同名声明遮蔽，不能裸赋值改写。
 
 ## 开发与测试
