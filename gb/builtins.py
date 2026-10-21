@@ -1,7 +1,13 @@
 """GB 运行时值、内建函数与显示格式。"""
 
 import math
+import re
 import sys
+
+# v0.3.1：int/float 的字符串解析严格匹配 GB 数值字面量形式（可选前导 -），
+# 拒绝 Python 扩展形式（全角数字、下划线、空白、+ 号、nan/inf、科学计数法）
+_INT_TEXT = re.compile(r"-?[0-9]+$")
+_FLOAT_TEXT = re.compile(r"-?([0-9]+|[0-9]+\.[0-9]+)$")
 
 
 class GbError(Exception):
@@ -62,8 +68,13 @@ class Builtin:
                           line, col)
 
 
-def display(v):
-    """print / str 的统一显示格式。"""
+def display(v, _seen=None):
+    """print / str 的统一显示格式。
+
+    v0.3.1：禁止循环引用。_seen 记录当前递归路径上的数组/struct 实例
+    （id 集合，离开分支即移除），检测到环时报运行时错误；无环的共享
+    引用（菱形）不受影响。
+    """
     if v is None:
         return "null"
     if v is True:
@@ -74,12 +85,20 @@ def display(v):
         return v
     if isinstance(v, (int, float)):
         return str(v)
-    if isinstance(v, list):
-        return "[" + ", ".join(display(x) for x in v) + "]"
-    if isinstance(v, Instance):
-        fields = ", ".join(display(v.values[name])
-                           for name in v.struct.fields)
-        return f"{v.struct.name}({fields})"
+    if isinstance(v, (list, Instance)):
+        if _seen is None:
+            _seen = set()
+        if id(v) in _seen:
+            raise GbError("存在循环引用，无法显示")
+        _seen.add(id(v))
+        try:
+            if isinstance(v, list):
+                return "[" + ", ".join(display(x, _seen) for x in v) + "]"
+            fields = ", ".join(display(v.values[name], _seen)
+                               for name in v.struct.fields)
+            return f"{v.struct.name}({fields})"
+        finally:
+            _seen.discard(id(v))
     if isinstance(v, Function):
         return f"<fun {v.name}>"
     if isinstance(v, Builtin):
@@ -126,10 +145,9 @@ def _to_int(args):
     if isinstance(v, float):
         return math.trunc(v)
     if isinstance(v, str):
-        try:
+        if _INT_TEXT.match(v):
             return int(v, 10)
-        except ValueError:
-            pass
+        raise GbError(f"无法将 {display(v)} 转换为 int")
     raise GbError(f"无法将 {display(v)} 转换为 int")
 
 
@@ -140,10 +158,9 @@ def _to_float(args):
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, str):
-        try:
+        if _FLOAT_TEXT.match(v):
             return float(v)
-        except ValueError:
-            pass
+        raise GbError(f"无法将 {display(v)} 转换为 float")
     raise GbError(f"无法将 {display(v)} 转换为 float")
 
 

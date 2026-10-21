@@ -332,6 +332,26 @@ class TestBuiltins(unittest.TestCase):
         run_error('print(int("abc"));')
         run_error("print(int(true));")
 
+    def test_int_float_strict_string_parsing(self):
+        # v0.3.1：严格匹配 GB 字面量语法（可选前导 -）
+        src = 'print(int("-5"), int("007"), float("2"), float("-2.5"));'
+        self.assertEqual(run(src), "-5 7 2.0 -2.5\n")
+        # Python 扩展形式一律报错
+        for src in ('print(int("１２"));',   # 全角数字
+                    'print(int("1_0"));',    # 下划线
+                    'print(int(" 12"));',    # 首尾空白
+                    'print(int("12 "));',
+                    'print(int("+12"));',    # + 号
+                    'print(int("-"));',
+                    'print(int(""));',
+                    'print(float("nan"));',
+                    'print(float("inf"));',
+                    'print(float("1e3"));',  # 科学计数法
+                    'print(float("2."));',
+                    'print(float(".5"));',
+                    'print(float("1_0.5"));'):
+            run_error(src)
+
     def test_input(self):
         src = 'let name = input("name? "); print("hi " + name);'
         self.assertEqual(run(src, stdin="Bob\n"), "name? hi Bob\n")
@@ -386,6 +406,61 @@ class TestCallStackFrames(unittest.TestCase):
                "print(f());")
         e = run_error(src)
         self.assertEqual(e.gb_frames, [("f", 2, 7)])
+
+
+class TestCyclicReference(unittest.TestCase):
+    """v0.3.1：禁止循环引用，遍历侧检测；无环的共享引用（菱形）不受影响。"""
+
+    def test_display_cyclic_array_is_error(self):
+        e = run_error("let a = []; push(a, a); print(a);")
+        self.assertIn("循环引用", e.message)
+
+    def test_display_diamond_sharing_is_fine(self):
+        src = "let b = [1]; let a = [b, b]; print(a, a == [b, b]);"
+        self.assertEqual(run(src), "[[1], [1]] true\n")
+
+    def test_str_cyclic_is_error(self):
+        run_error("let a = []; push(a, a); print(str(a));")
+
+    def test_equal_cyclic_arrays_is_error(self):
+        src = ("let a = []; push(a, a);"
+               "let b = []; push(b, b); print(a == b);")
+        e = run_error(src)
+        self.assertIn("循环引用", e.message)
+
+    def test_compare_cyclic_arrays_is_error(self):
+        src = ("let a = []; push(a, a);"
+               "let b = []; push(b, b); print(a < b);")
+        run_error(src)
+
+    def test_struct_instance_cycle_is_error(self):
+        run_error("struct N { next } let n = N(null); n.next = n; print(n);")
+
+    def test_mixed_array_struct_cycle_is_error(self):
+        src = ("struct B { v } let a = []; let b = B(null);"
+               "b.v = a; push(a, b); print(a);")
+        run_error(src)
+
+
+class TestDeepNesting(unittest.TestCase):
+    """v0.3.1：深层但无环的嵌套可正常显示与比较（宿主上限 10000）。"""
+
+    def _nest(self, name, depth):
+        # 构造 depth 层嵌套数组（名为 name）的 GB 源码
+        return (f"let {name} = 1;\n"
+                f"for (let i in [1, {depth}]) {{ "
+                f"let t = []; push(t, {name}); {name} = t; }}\n")
+
+    def test_deep_nest_display(self):
+        depth = 200
+        out = run(self._nest("l", depth) + "print(l);")
+        self.assertEqual(out, "[" * depth + "1" + "]" * depth + "\n")
+
+    def test_deep_nest_equal(self):
+        depth = 200
+        src = (self._nest("a", depth) + self._nest("b", depth)
+               + "print(a == b, a != b);")
+        self.assertEqual(run(src), "true false\n")
 
 
 class TestEndToEnd(unittest.TestCase):
