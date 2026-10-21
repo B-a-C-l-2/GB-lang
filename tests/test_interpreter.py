@@ -132,6 +132,17 @@ class TestIndexAndSlice(unittest.TestCase):
                          "abc \n")
         self.assertEqual(run("print([1, 2][9:3]);"), "[]\n")
 
+    def test_slice_negative_endpoint_is_error(self):
+        # v0.4.1：负端点报错而非静默钳到 0
+        for src in ("let a = [1, 2, 3]; print(a[0:-1]);",
+                    "let a = [1, 2, 3]; print(a[-5:2]);",
+                    'print("abcdef"[0:-1]);',
+                    'print("abc"[-1:-1]);'):
+            e = run_error(src)
+            self.assertIn("切片端点不能为负", e.message)
+        # 正越界仍钳制，不受影响
+        self.assertEqual(run("print([1, 2, 3][0:99]);"), "[1, 2, 3]\n")
+
     def test_array_mutation(self):
         src = "let a = [1, 2]; a[0] = 9; print(a);"
         self.assertEqual(run(src), "[9, 2]\n")
@@ -363,6 +374,45 @@ class TestBuiltins(unittest.TestCase):
     def test_pop_errors(self):
         run_error("pop([]);")
         run_error("pop(1);")
+
+    def test_float_overflow_is_error(self):
+        # v0.4.2：浮点运算结果为 inf/nan 时报「浮点溢出」
+        # x == 1e308（有限），再乘/加/除即溢出
+        big = "let x = 10.0; for (let i in [1, 307]) { x = x * 10.0; }\n"
+        for tail in ("print(x * 10.0);", "print(x + x);", "print(x / 0.5);"):
+            e = run_error(big + tail)
+            self.assertIn("浮点溢出", e.message)
+        # 循环内累乘溢出同样报错
+        run_error("let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }")
+
+    def test_int_arithmetic_never_overflows(self):
+        # int 精度随宿主，无溢出（2^1024 共 309 位）
+        src = ("let n = 2; for (let i in [1, 10]) { n = n * n; }\n"
+               "print(len(str(n)));")
+        self.assertEqual(run(src), "309\n")
+
+    def test_int_of_inf_nan_defensive(self):
+        # v0.4.1 防御性分支：v0.4.2 后 inf/nan 在语言中无法构造，
+        # 直接测 Python 层
+        from gb.builtins import _to_int
+        for v in (float("inf"), float("nan")):
+            with self.assertRaises(GbError):
+                _to_int([v])
+
+    def test_float_of_huge_int_is_error(self):
+        # v0.4.1：超出 float64 范围（曾 OverflowError 裸 traceback）
+        src = ("let n = 2; for (let i in [1, 10]) { n = n * n; }\n"
+               "print(float(n));")
+        e = run_error(src)
+        self.assertIn("无法转换为 float", e.message)
+
+    def test_input_no_newline_eof_and_long_line(self):
+        # 无换行 EOF：最后一行不带换行也能读到
+        self.assertEqual(run("print(input());", stdin="abc"), "abc\n")
+        # 超长行
+        long_line = "x" * 100000 + "\n"
+        self.assertEqual(run("print(len(input()));", stdin=long_line),
+                         "100000\n")
 
     def test_input_eof_returns_null(self):
         # v0.3：EOF 返回 null，区别于空行 ""

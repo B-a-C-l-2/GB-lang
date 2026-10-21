@@ -143,6 +143,10 @@ def _to_int(args):
     if isinstance(v, int):
         return v
     if isinstance(v, float):
+        # v0.4.1：inf/nan 不可转 int（math.trunc 会抛 OverflowError/
+        # ValueError，统一为运行时错误）
+        if not math.isfinite(v):
+            raise GbError(f"无法将 {display(v)} 转换为 int")
         return math.trunc(v)
     if isinstance(v, str):
         if _INT_TEXT.match(v):
@@ -156,7 +160,11 @@ def _to_float(args):
     if isinstance(v, bool):
         raise GbError("无法将 bool 转换为 float")
     if isinstance(v, (int, float)):
-        return float(v)
+        try:
+            return float(v)
+        except OverflowError:
+            # v0.4.1：超大 int 超出 float64 范围
+            raise GbError("整数过大，无法转换为 float") from None
     if isinstance(v, str):
         if _FLOAT_TEXT.match(v):
             return float(v)
