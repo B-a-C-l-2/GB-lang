@@ -408,6 +408,80 @@ class TestCallStackFrames(unittest.TestCase):
         self.assertEqual(e.gb_frames, [("f", 2, 7)])
 
 
+class TestArrayForIn(unittest.TestCase):
+    """v0.4：数组遍历 for（快照遍历）。"""
+
+    def test_basic_iteration(self):
+        src = ("let s = \"\";"
+               "for (let x in [10, 20, 30]) { s = s + str(x) + \",\"; }"
+               "print(s);")
+        self.assertEqual(run(src), "10,20,30,\n")
+
+    def test_snapshot_pop_does_not_skip(self):
+        # 循环体内 pop 不影响本轮遍历（对比实时遍历会跳过 2、4）
+        src = ("let a = [1, 2, 3, 4];\n"
+               "let s = \"\";\n"
+               "for (let x in a) { s = s + str(x); pop(a); }\n"
+               "print(s, a);")
+        self.assertEqual(run(src), "1234 []\n")
+
+    def test_snapshot_push_does_not_extend(self):
+        src = ("let a = [1, 2]; let n = 0;\n"
+               "for (let x in a) { n = n + 1; push(a, 9); }\n"
+               "print(n, a);")
+        self.assertEqual(run(src), "2 [1, 2, 9, 9]\n")
+
+    def test_snapshot_rebind_does_not_affect(self):
+        src = ("let a = [1, 2, 3]; let n = 0;\n"
+               "for (let x in a) { n = n + 1; a = []; }\n"
+               "print(n, a);")
+        self.assertEqual(run(src), "3 []\n")
+
+    def test_two_element_literal_is_interval(self):
+        # [5, 3] 是区间：5..3 为空，零次循环；若是数组遍历则会打印 5、3
+        self.assertEqual(run("for (let x in [5, 3]) { print(x); }"), "")
+
+    def test_three_element_literal_is_array(self):
+        # 三元素不是区间形状，按数组遍历
+        self.assertEqual(run("for (let x in [5, 3, 1]) { print(x); }"),
+                         "5\n3\n1\n")
+
+    def test_expression_iterable_slice(self):
+        # in 右侧一般表达式：切片结果为数组
+        src = "for (let x in [1, 2, 3][0:2]) { print(x); }"
+        self.assertEqual(run(src), "1\n2\n")
+
+    def test_non_array_is_error(self):
+        e = run_error("for (let x in 5) { }")
+        self.assertIn("for 只能遍历区间或数组", e.message)
+        self.assertEqual((e.line, e.col), (1, 15))  # in 右侧表达式起点
+        # 字符串不可遍历（v0.4 不做）
+        run_error('for (let x in "ab") { }')
+
+    def test_without_let_reuses_outer_var(self):
+        src = ("let x = 0;\n"
+               "for (x in [7, 8]) { }\n"
+               "print(x);")
+        self.assertEqual(run(src), "8\n")
+
+    def test_without_let_undeclared_is_error(self):
+        e = run_error("for (z in [1, 2]) { }")
+        self.assertEqual((e.line, e.col), (1, 6))  # 变量名 z
+
+    def test_let_remains_block_scoped(self):
+        run_error("for (let x in [1, 2]) { } print(x);")
+
+    def test_break_continue(self):
+        src = ("let s = \"\";\n"
+               "for (let x in [1, 2, 3, 4, 5]) {\n"
+               "    if (x == 2) { continue; }\n"
+               "    if (x == 4) { break; }\n"
+               "    s = s + str(x);\n"
+               "}\n"
+               "print(s);")
+        self.assertEqual(run(src), "13\n")
+
+
 class TestCyclicReference(unittest.TestCase):
     """v0.3.1：禁止循环引用，遍历侧检测；无环的共享引用（菱形）不受影响。"""
 

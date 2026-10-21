@@ -59,15 +59,15 @@ class TestParser(unittest.TestCase):
     def test_range_for_all_brackets(self):
         for interval in ("[0, 10]", "[0, 10)", "(0, 10]", "(0, 10)"):
             node = parse_one(f"for (let i in {interval}) {{ }}")
-            self.assertIsInstance(node, ast.ForRange)
+            self.assertIsInstance(node, ast.ForIn)
             self.assertEqual(node.name, "i")
         node = parse_one("for (let i in (0, 20]) { print(i); }")
-        self.assertFalse(node.interval.left_inclusive)
-        self.assertTrue(node.interval.right_inclusive)
+        self.assertFalse(node.iterable.left_inclusive)
+        self.assertTrue(node.iterable.right_inclusive)
 
     def test_range_for_without_let(self):
         node = parse_one("for (i in [1, 3]) { }")
-        self.assertIsInstance(node, ast.ForRange)
+        self.assertIsInstance(node, ast.ForIn)
         self.assertFalse(node.declare)
         self.assertEqual((node.name_line, node.name_col), (1, 6))
         # 无 let 但含分号的仍是 C 风格 for
