@@ -454,6 +454,25 @@ class TestBuiltins(unittest.TestCase):
         src = "let x = input();\nif (x == null) { print(\"eof\"); }"
         self.assertEqual(run(src), "eof\n")
 
+    def test_non_utf8_stdin_reports_friendly_error(self):
+        # v0.4.3：stdin 解码失败不再泄漏裸 UnicodeDecodeError
+        class BadStdin:
+            def readline(self):
+                raise UnicodeDecodeError(
+                    "utf-8", b"\xd6", 0, 1, "invalid continuation byte")
+
+        old_stdin = sys.stdin
+        sys.stdin = BadStdin()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(GbError) as ctx:
+                    Interpreter(make_global_env()).run(
+                        parse("print(input());"))
+        finally:
+            sys.stdin = old_stdin
+        self.assertIn("UTF-8", ctx.exception.message)
+        self.assertEqual((ctx.exception.line, ctx.exception.col), (1, 7))
+
 
 class TestErrorLocations(unittest.TestCase):
     def test_runtime_error_has_line_and_col(self):

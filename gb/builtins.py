@@ -122,7 +122,11 @@ def _input(args):
         raise GbError("input 的提示语必须是字符串")
     sys.stdout.write(prompt)
     sys.stdout.flush()
-    line = sys.stdin.readline()
+    try:
+        line = sys.stdin.readline()
+    except UnicodeDecodeError:
+        # v0.4.3：与源文件一致，非 UTF-8 输入给出友好错误
+        raise GbError("输入不是有效的 UTF-8") from None
     if line == "":
         return None  # v0.3：EOF 返回 null，与空行 "" 区分
     if line.endswith("\n"):
