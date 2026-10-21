@@ -5,9 +5,10 @@ import re
 import sys
 
 # v0.3.1：int/float 的字符串解析严格匹配 GB 数值字面量形式（可选前导 -），
-# 拒绝 Python 扩展形式（全角数字、下划线、空白、+ 号、nan/inf、科学计数法）
-_INT_TEXT = re.compile(r"-?[0-9]+$")
-_FLOAT_TEXT = re.compile(r"-?([0-9]+|[0-9]+\.[0-9]+)$")
+# 拒绝 Python 扩展形式（全角数字、下划线、空白、+ 号、nan/inf、科学计数法）。
+# v0.4.3：用 \Z 而非 $，后者会匹配末尾换行之前，误放行 "12\n"。
+_INT_TEXT = re.compile(r"-?[0-9]+\Z")
+_FLOAT_TEXT = re.compile(r"-?([0-9]+|[0-9]+\.[0-9]+)\Z")
 
 
 class GbError(Exception):
@@ -121,7 +122,11 @@ def _input(args):
         raise GbError("input 的提示语必须是字符串")
     sys.stdout.write(prompt)
     sys.stdout.flush()
-    line = sys.stdin.readline()
+    try:
+        line = sys.stdin.readline()
+    except UnicodeDecodeError:
+        # v0.4.3：与源文件一致，非 UTF-8 输入给出友好错误
+        raise GbError("输入不是有效的 UTF-8") from None
     if line == "":
         return None  # v0.3：EOF 返回 null，与空行 "" 区分
     if line.endswith("\n"):
@@ -161,13 +166,21 @@ def _to_float(args):
         raise GbError("无法将 bool 转换为 float")
     if isinstance(v, (int, float)):
         try:
-            return float(v)
+            f = float(v)
         except OverflowError:
             # v0.4.1：超大 int 超出 float64 范围
             raise GbError("整数过大，无法转换为 float") from None
+        # v0.4.3：inf/nan 在语言中不可构造，防御性拒绝
+        if not math.isfinite(f):
+            raise GbError("浮点溢出")
+        return f
     if isinstance(v, str):
         if _FLOAT_TEXT.match(v):
-            return float(v)
+            f = float(v)
+            # v0.4.3：400 位以上的数字串会静默溢出为 inf
+            if not math.isfinite(f):
+                raise GbError("浮点溢出")
+            return f
         raise GbError(f"无法将 {display(v)} 转换为 float")
     raise GbError(f"无法将 {display(v)} 转换为 float")
 

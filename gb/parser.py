@@ -221,13 +221,19 @@ class Parser:
     def _interval_or_expr(self):
         """in 右侧（v0.4）：形如 [e1, e2] / (e1, e2) 的一律解析为区间
         （两元素数组字面量因此无法在 for 头中内联遍历）；其余按一般
-        表达式解析，运行时求值必须是数组。试探解析失败则回溯重解析。"""
+        表达式解析，运行时求值必须是数组。试探解析失败、或区间后还
+        跟着后缀/运算符（如 [1, 2][0:1]、[1, 2] + 3）则回溯重解析；
+        只有区间形状恰好占满 for 头（后面紧跟 ")"）才判为区间。"""
         if self._current().type in ("[", "("):
             pos = self._pos
             try:
-                return self._interval()
+                node = self._interval()
             except ParseError:
-                self._pos = pos  # 不是区间形状，按一般表达式重解析
+                pass
+            else:
+                if self._check(")"):
+                    return node
+            self._pos = pos  # 不是区间形状，按一般表达式重解析
         return self._expression()
 
     def _interval(self):
@@ -264,10 +270,12 @@ class Parser:
 
     def _assignment(self):
         expr = self._or()
-        if self._match("="):
+        eq = self._match("=")
+        if eq is not None:
             value = self._assignment()
             if not isinstance(expr, (ast.Var, ast.Index, ast.Get)):
-                raise ParseError(self._current(), "赋值目标非法")
+                # v0.4.3：位置指向 =，而非右值之后的 token
+                raise ParseError(eq, "赋值目标非法")
             return ast.Assign(expr, value, expr.line, expr.col)
         return expr
 

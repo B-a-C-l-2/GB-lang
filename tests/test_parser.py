@@ -56,6 +56,12 @@ class TestParser(unittest.TestCase):
         with self.assertRaises(ParseError):
             parse("1 = 2;")
 
+    def test_illegal_assignment_target_position(self):
+        # v0.4.3：位置指向 =，而非右值之后的 token
+        e = parse_error("a + b = 1;")
+        self.assertEqual((e.line, e.col), (1, 7))
+        self.assertEqual(e.got, '"="')
+
     def test_range_for_all_brackets(self):
         for interval in ("[0, 10]", "[0, 10)", "(0, 10]", "(0, 10)"):
             node = parse_one(f"for (let i in {interval}) {{ }}")
@@ -73,6 +79,14 @@ class TestParser(unittest.TestCase):
         # 无 let 但含分号的仍是 C 风格 for
         self.assertIsInstance(
             parse_one("for (i = 0; i < 2; i = i + 1) { }"), ast.ForC)
+
+    def test_for_in_interval_shape_with_postfix_is_expression(self):
+        # v0.4.3：区间形状后接后缀/运算符时按一般表达式解析
+        node = parse_one("for (let x in [1, 2][0:1]) { }")
+        self.assertIsInstance(node, ast.ForIn)
+        self.assertIsInstance(node.iterable, ast.Slice)
+        node = parse_one("for (let x in [1, 2] + 3) { }")
+        self.assertIsInstance(node.iterable, ast.Binary)
 
     def test_c_style_for(self):
         node = parse_one("for (let i = 0; i < 3; i = i + 1) { }")

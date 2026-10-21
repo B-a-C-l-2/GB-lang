@@ -363,6 +363,13 @@ class TestBuiltins(unittest.TestCase):
                     'print(float("1_0.5"));'):
             run_error(src)
 
+    def test_numeric_strings_reject_trailing_newline(self):
+        # v0.4.3：$ 会匹配末尾换行之前，导致 int("12\n") 被误接受
+        for src in ('print(int("12\\n"));',
+                    'print(float("2.5\\n"));'):
+            e = run_error(src)
+            self.assertIn("无法将", e.message)
+
     def test_input(self):
         src = 'let name = input("name? "); print("hi " + name);'
         self.assertEqual(run(src, stdin="Bob\n"), "name? hi Bob\n")
@@ -385,11 +392,37 @@ class TestBuiltins(unittest.TestCase):
         # 循环内累乘溢出同样报错
         run_error("let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }")
 
+    def test_float_literal_overflow_is_error(self):
+        # v0.4.3：浮点字面量溢出不得静默变成 inf
+        e = run_error("let x = " + "1" + "0" * 400 + ".0;")
+        self.assertIn("浮点溢出", e.message)
+        self.assertEqual((e.line, e.col), (1, 9))
+
+    def test_float_conversion_overflow_is_error(self):
+        # v0.4.3：float("大数字符串") 不再静默得 inf
+        big = "1" * 400
+        for src in (f'print(float("{big}"));',
+                    f'print(float("-{big}"));'):
+            e = run_error(src)
+            self.assertIn("浮点溢出", e.message)
+
     def test_int_arithmetic_never_overflows(self):
         # int 精度随宿主，无溢出（2^1024 共 309 位）
         src = ("let n = 2; for (let i in [1, 10]) { n = n * n; }\n"
                "print(len(str(n)));")
         self.assertEqual(run(src), "309\n")
+
+    def test_huge_int_literal_and_conversion(self):
+        # v0.4.3：解除宿主 int↔str 4300 位限制，字面量与 int() 均可用
+        big = "9" * 5000
+        self.assertEqual(run(f"print(len(str({big})));"), "5000\n")
+        self.assertEqual(run(f'print(len(str(int("{big}"))));'), "5000\n")
+
+    def test_huge_int_display_beyond_host_limit(self):
+        # v0.4.3：2^16384 约 4933 位，print/str 不再抛裸 ValueError
+        src = ("let n = 2; for (let i in [1, 14]) { n = n * n; }\n"
+               "print(len(str(n)) > 4300);")
+        self.assertEqual(run(src), "true\n")
 
     def test_int_of_inf_nan_defensive(self):
         # v0.4.1 防御性分支：v0.4.2 后 inf/nan 在语言中无法构造，
@@ -420,6 +453,25 @@ class TestBuiltins(unittest.TestCase):
         self.assertEqual(run("print(input());", stdin="\n"), "\n")
         src = "let x = input();\nif (x == null) { print(\"eof\"); }"
         self.assertEqual(run(src), "eof\n")
+
+    def test_non_utf8_stdin_reports_friendly_error(self):
+        # v0.4.3：stdin 解码失败不再泄漏裸 UnicodeDecodeError
+        class BadStdin:
+            def readline(self):
+                raise UnicodeDecodeError(
+                    "utf-8", b"\xd6", 0, 1, "invalid continuation byte")
+
+        old_stdin = sys.stdin
+        sys.stdin = BadStdin()
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(GbError) as ctx:
+                    Interpreter(make_global_env()).run(
+                        parse("print(input());"))
+        finally:
+            sys.stdin = old_stdin
+        self.assertIn("UTF-8", ctx.exception.message)
+        self.assertEqual((ctx.exception.line, ctx.exception.col), (1, 7))
 
 
 class TestErrorLocations(unittest.TestCase):
@@ -490,6 +542,16 @@ class TestArrayForIn(unittest.TestCase):
     def test_two_element_literal_is_interval(self):
         # [5, 3] 是区间：5..3 为空，零次循环；若是数组遍历则会打印 5、3
         self.assertEqual(run("for (let x in [5, 3]) { print(x); }"), "")
+
+    def test_interval_shape_with_postfix_is_expression(self):
+        # v0.4.3：后接切片时按表达式求值，遍历切片结果
+        self.assertEqual(run("for (let x in [1, 2][0:2]) { print(x); }"),
+                         "1\n2\n")
+
+    def test_interval_shape_with_operator_is_expression(self):
+        # v0.4.3：不再误报语法错误，按表达式求值后在 + 处报类型错误
+        e = run_error("for (let x in [1, 2] + 3) { }")
+        self.assertIn("+ 只能用于数值或两个字符串", e.message)
 
     def test_three_element_literal_is_array(self):
         # 三元素不是区间形状，按数组遍历

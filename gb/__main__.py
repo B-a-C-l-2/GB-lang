@@ -61,7 +61,8 @@ def main(argv):
         return 1
 
     try:
-        with open(argv[1], encoding="utf-8") as f:
+        # v0.4.3：utf-8-sig 容忍 Windows 记事本等工具写入的 UTF-8 BOM
+        with open(argv[1], encoding="utf-8-sig") as f:
             source = f.read()
     except OSError as e:
         print(f"无法读取文件：{e}", file=sys.stderr)
