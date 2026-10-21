@@ -6,8 +6,9 @@ import sys
 from gb import ast
 
 # v0.3.1：默认 1000 的宿主递归上限对深层数据（如千层嵌套数组的
-# 显示/比较，每层消耗数帧）过于拮据，提高到 10000；GB 函数递归
-# 深度上限也随之升至约千层
+# 显示/比较，每层消耗数帧）过于拮据，提高到 10000。
+# v0.4.3 实测深度边界：GB 函数递归约 2500 层，嵌套数组 print 约
+# 1000 层，更深报「调用栈过深」（见 design §12）
 sys.setrecursionlimit(10000)
 from gb.builtins import (
     BUILTINS, Builtin, Function, StructDef, Instance, GbError,
