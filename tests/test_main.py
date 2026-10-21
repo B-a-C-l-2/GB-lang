@@ -132,6 +132,7 @@ class TestCliBoundary(unittest.TestCase):
 
     def _run_raising(self, exc):
         old_main = cli.main
+        old_debug = os.environ.pop("GB_DEBUG", None)
 
         def boom(argv):
             raise exc
@@ -143,6 +144,8 @@ class TestCliBoundary(unittest.TestCase):
                 code = cli._run_cli(["gb", "x.gb"])
         finally:
             cli.main = old_main
+            if old_debug is not None:
+                os.environ["GB_DEBUG"] = old_debug
         return code, err.getvalue()
 
     def test_unknown_exception_is_reported(self):

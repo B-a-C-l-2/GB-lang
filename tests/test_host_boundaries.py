@@ -21,6 +21,13 @@ from gb.parser import parse
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _clean_env():
+    """子进程测试不继承调试开关，保证断言稳定。"""
+    env = dict(os.environ)
+    env.pop("GB_DEBUG", None)
+    return env
+
+
 class TestBuiltinHostExceptions(unittest.TestCase):
     """内建调用边界：已知宿主异常翻译为 GbError，位置取调用起点。"""
 
@@ -111,7 +118,8 @@ class TestCliNoTraceback(unittest.TestCase):
             return subprocess.run(
                 [sys.executable, "-m", "gb", path],
                 cwd=_REPO_ROOT, input=stdin, capture_output=True,
-                text=True, encoding="utf-8", errors="replace", timeout=60)
+                text=True, encoding="utf-8", errors="replace", timeout=60,
+                env=_clean_env())
         finally:
             os.unlink(path)
 
@@ -152,7 +160,7 @@ class TestCliNoTraceback(unittest.TestCase):
             p = subprocess.run(
                 [sys.executable, "-m", "gb", path], cwd=_REPO_ROOT,
                 input="中文\n".encode("gbk"), capture_output=True,
-                timeout=60)
+                timeout=60, env=_clean_env())
         finally:
             os.unlink(path)
         err = p.stderr.decode("utf-8", "replace")
@@ -168,7 +176,7 @@ class TestCliNoTraceback(unittest.TestCase):
             p = subprocess.run(
                 [sys.executable, "-m", "gb", path], cwd=_REPO_ROOT,
                 capture_output=True, text=True, encoding="utf-8",
-                errors="replace", timeout=60)
+                errors="replace", timeout=60, env=_clean_env())
         finally:
             os.unlink(path)
         self.assertEqual(p.returncode, 0)
