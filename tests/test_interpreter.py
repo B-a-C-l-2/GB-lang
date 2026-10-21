@@ -442,6 +442,27 @@ class TestCyclicReference(unittest.TestCase):
         run_error(src)
 
 
+class TestDeepNesting(unittest.TestCase):
+    """v0.3.1：深层但无环的嵌套可正常显示与比较（宿主上限 10000）。"""
+
+    def _nest(self, name, depth):
+        # 构造 depth 层嵌套数组（名为 name）的 GB 源码
+        return (f"let {name} = 1;\n"
+                f"for (let i in [1, {depth}]) {{ "
+                f"let t = []; push(t, {name}); {name} = t; }}\n")
+
+    def test_deep_nest_display(self):
+        depth = 200
+        out = run(self._nest("l", depth) + "print(l);")
+        self.assertEqual(out, "[" * depth + "1" + "]" * depth + "\n")
+
+    def test_deep_nest_equal(self):
+        depth = 200
+        src = (self._nest("a", depth) + self._nest("b", depth)
+               + "print(a == b, a != b);")
+        self.assertEqual(run(src), "true false\n")
+
+
 class TestEndToEnd(unittest.TestCase):
     def test_design_example(self):
         src = """

@@ -93,7 +93,7 @@ def main(argv):
         print(text, file=sys.stderr)
         return 1
     except RecursionError as e:
-        text = "运行时错误：调用栈过深（可能存在无限递归）"
+        text = "运行时错误：调用栈过深（可能是无限递归或过深的数据嵌套）"
         text += _format_frames(getattr(e, "gb_frames", None))
         print(text, file=sys.stderr)
         return 1
