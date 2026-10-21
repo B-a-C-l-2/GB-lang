@@ -7,12 +7,18 @@
 
 import contextlib
 import io
+import os
 import random
+import subprocess
+import sys
+import tempfile
 import unittest
 
 from gb.builtins import Builtin, GbError
 from gb.interpreter import Interpreter, make_global_env
 from gb.parser import parse
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class TestBuiltinHostExceptions(unittest.TestCase):
@@ -92,6 +98,82 @@ class TestRandomHostBoundaries(unittest.TestCase):
             for value in self.VALUES:
                 with self.subTest(fn=fn, value=value[:20]):
                     self._assert_only_gb_error(f"print({fn}({value}));")
+
+
+class TestCliNoTraceback(unittest.TestCase):
+    """v0.4.5：CLI 端到端只输出友好错误，绝不泄漏 Traceback。"""
+
+    def _run_source(self, source, stdin=""):
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+                f.write(source)
+            return subprocess.run(
+                [sys.executable, "-m", "gb", path],
+                cwd=_REPO_ROOT, input=stdin, capture_output=True,
+                text=True, encoding="utf-8", errors="replace", timeout=60)
+        finally:
+            os.unlink(path)
+
+    def test_boundary_programs(self):
+        big = "9" * 5000
+        cases = [
+            ("大整数字面量", f"print(len(str({big})));", "5000\n", None),
+            ("超大 int 混合浮点",
+             "let n = 2; for (let i in [1, 14]) { n = n * n; } "
+             "print(n + 1.0);", None, "浮点溢出"),
+            ("浮点字面量溢出",
+             "let x = " + "1" + "0" * 400 + ".0;", None, "浮点溢出"),
+            ("float() 溢出", 'print(float("' + "1" * 400 + '"));',
+             None, "浮点溢出"),
+            ("int() 尾随换行", 'print(int("12\\n"));', None, "无法将"),
+            ("切片端点类型", "let a = [1]; print(a[0:true]);",
+             None, "切片端点必须是 int"),
+            ("for-in 后缀回退", "for (let x in [1, 2][0:2]) { print(x); }",
+             "1\n2\n", None),
+            ("EOF 末行指示", "let x = 1\n", None, "^"),
+        ]
+        for name, source, want_out, want_err in cases:
+            with self.subTest(name=name):
+                p = self._run_source(source)
+                self.assertNotIn("Traceback", p.stderr)
+                if want_out is not None:
+                    self.assertEqual(p.returncode, 0)
+                    self.assertEqual(p.stdout, want_out)
+                else:
+                    self.assertEqual(p.returncode, 1)
+                    self.assertIn(want_err, p.stderr)
+
+    def test_non_utf8_stdin(self):
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write("let s = input(); print(s);")
+            p = subprocess.run(
+                [sys.executable, "-m", "gb", path], cwd=_REPO_ROOT,
+                input="中文\n".encode("gbk"), capture_output=True,
+                timeout=60)
+        finally:
+            os.unlink(path)
+        err = p.stderr.decode("utf-8", "replace")
+        self.assertEqual(p.returncode, 1)
+        self.assertNotIn("Traceback", err)
+        self.assertIn("输入不是有效的 UTF-8", err)
+
+    def test_bom_source(self):
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(b"\xef\xbb\xbfprint(1);")
+            p = subprocess.run(
+                [sys.executable, "-m", "gb", path], cwd=_REPO_ROOT,
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=60)
+        finally:
+            os.unlink(path)
+        self.assertEqual(p.returncode, 0)
+        self.assertEqual(p.stdout, "1\n")
+        self.assertEqual(p.stderr, "")
 
 
 if __name__ == "__main__":
