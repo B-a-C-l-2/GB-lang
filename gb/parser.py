@@ -8,8 +8,6 @@ def show_token(tok):
     """错误信息中 token 的显示文本。"""
     if tok.type == "EOF":
         return "文件末尾"
-    if tok.type == "STRING":
-        return f'"{tok.value}"'
     return f'"{tok.value}"'
 
 
