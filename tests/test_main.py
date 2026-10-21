@@ -55,6 +55,25 @@ class TestParseRecursion(unittest.TestCase):
         self.assertNotIn("Traceback", err.getvalue())
 
 
+class TestBomSource(unittest.TestCase):
+    """v0.4.3：源文件可带 UTF-8 BOM。"""
+
+    def test_bom_source_is_accepted(self):
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(b"\xef\xbb\xbfprint(1);")
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.redirect_stdout(out):
+                with contextlib.redirect_stderr(err):
+                    code = main(["gb", path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(code, 0)
+        self.assertEqual(out.getvalue(), "1\n")
+        self.assertEqual(err.getvalue(), "")
+
+
 class TestNonUtf8Source(unittest.TestCase):
     """v0.4.1：非 UTF-8 源文件报友好错误，不输出裸 traceback。"""
 
