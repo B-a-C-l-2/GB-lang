@@ -6,8 +6,9 @@ import sys
 from gb import ast
 
 # v0.3.1：默认 1000 的宿主递归上限对深层数据（如千层嵌套数组的
-# 显示/比较，每层消耗数帧）过于拮据，提高到 10000；GB 函数递归
-# 深度上限也随之升至约千层
+# 显示/比较，每层消耗数帧）过于拮据，提高到 10000。
+# v0.4.3 实测深度边界：GB 函数递归约 2500 层，嵌套数组 print 约
+# 1000 层，更深报「调用栈过深」（见 design §12）
 sys.setrecursionlimit(10000)
 from gb.builtins import (
     BUILTINS, Builtin, Function, StructDef, Instance, GbError,
@@ -396,37 +397,43 @@ class Interpreter:
         b = self._eval(node.right, env)
         line, col = node.line, node.col
 
-        if op == "+":
-            if isinstance(a, str) and isinstance(b, str):
-                return a + b
-            if _is_num(a) and _is_num(b):
-                return _check_finite(a + b, line, col)
-            raise GbError("+ 只能用于数值或两个字符串", line, col)
-        if op in ("-", "*"):
-            if _is_num(a) and _is_num(b):
-                return _check_finite(a - b if op == "-" else a * b,
-                                     line, col)
-            raise GbError(f"{op} 只能用于数值", line, col)
-        if op == "/":
-            if _is_num(a) and _is_num(b):
-                if b == 0:
-                    raise GbError("除数为零", line, col)
-                return _check_finite(a / b, line, col)
-            raise GbError("/ 只能用于数值", line, col)
-        if op == "%":
-            if _is_num(a) and _is_num(b):
-                if b == 0:
-                    raise GbError("对零取模", line, col)
-                return _check_finite(a % b, line, col)
-            raise GbError("% 只能用于数值", line, col)
-        if op == "==":
-            return _gb_equal(a, b, line, col)
-        if op == "!=":
-            return not _gb_equal(a, b, line, col)
-        if op in ("<", "<=", ">", ">="):
-            c = _gb_compare(a, b, line, col)
-            return {"<": c < 0, "<=": c <= 0,
-                    ">": c > 0, ">=": c >= 0}[op]
+        # v0.4.4：超大 int 与 float 混合运算（含 int/int 的 /）时，宿主在
+        # int->float 转换处直接抛 OverflowError（结果还没产生，_check_finite
+        # 拦不到）；与 inf/nan 结果统一报「浮点溢出」
+        try:
+            if op == "+":
+                if isinstance(a, str) and isinstance(b, str):
+                    return a + b
+                if _is_num(a) and _is_num(b):
+                    return _check_finite(a + b, line, col)
+                raise GbError("+ 只能用于数值或两个字符串", line, col)
+            if op in ("-", "*"):
+                if _is_num(a) and _is_num(b):
+                    return _check_finite(a - b if op == "-" else a * b,
+                                         line, col)
+                raise GbError(f"{op} 只能用于数值", line, col)
+            if op == "/":
+                if _is_num(a) and _is_num(b):
+                    if b == 0:
+                        raise GbError("除数为零", line, col)
+                    return _check_finite(a / b, line, col)
+                raise GbError("/ 只能用于数值", line, col)
+            if op == "%":
+                if _is_num(a) and _is_num(b):
+                    if b == 0:
+                        raise GbError("对零取模", line, col)
+                    return _check_finite(a % b, line, col)
+                raise GbError("% 只能用于数值", line, col)
+            if op == "==":
+                return _gb_equal(a, b, line, col)
+            if op == "!=":
+                return not _gb_equal(a, b, line, col)
+            if op in ("<", "<=", ">", ">="):
+                c = _gb_compare(a, b, line, col)
+                return {"<": c < 0, "<=": c <= 0,
+                        ">": c > 0, ">=": c >= 0}[op]
+        except OverflowError:
+            raise GbError("浮点溢出", line, col) from None
         raise GbError(f"未知运算符 {op}", line, col)
 
     def _assign(self, node, env):
@@ -464,9 +471,10 @@ class Interpreter:
             raise GbError("赋值目标非法", node.line, node.col)
         return value
 
-    def _check_int_index(self, idx, line, col):
+    def _check_int_index(self, idx, line, col, what="下标"):
+        """下标/切片端点都必须是 int；what 用于区分报错措辞。"""
         if not _is_num(idx) or isinstance(idx, float):
-            raise GbError("下标必须是 int", line, col)
+            raise GbError(f"{what}必须是 int", line, col)
 
     def _index(self, node, env):
         obj = self._eval(node.object, env)
@@ -484,8 +492,8 @@ class Interpreter:
         end = self._eval(node.end, env)
         if not isinstance(obj, (list, str)):
             raise GbError("只有数组和字符串可以切片", node.line, node.col)
-        self._check_int_index(start, node.line, node.col)
-        self._check_int_index(end, node.line, node.col)
+        self._check_int_index(start, node.line, node.col, "切片端点")
+        self._check_int_index(end, node.line, node.col, "切片端点")
         length = len(obj)
         # v0.4.1：负端点为运行时错误（原先静默钳到 0，与「不支持负
         # 下标」矛盾）；正越界端点仍钳制到 len

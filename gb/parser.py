@@ -19,10 +19,6 @@ class ParseError(Exception):
         self.col = token.col
         self.got = show_token(token)
 
-    def __str__(self):
-        return (f"语法错误（第 {self.line} 行，第 {self.col} 列）："
-                f"{self.message}，遇到 {self.got}")
-
 
 class Parser:
     def __init__(self, tokens):
