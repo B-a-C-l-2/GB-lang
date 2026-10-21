@@ -66,6 +66,10 @@ def main(argv):
     except OSError as e:
         print(f"无法读取文件：{e}", file=sys.stderr)
         return 1
+    except UnicodeDecodeError as e:
+        # v0.4.1：非 UTF-8 源文件（如 GBK），文件级错误无行列号
+        print(f"源文件不是有效的 UTF-8：{e}", file=sys.stderr)
+        return 1
 
     try:
         module = parse(source)

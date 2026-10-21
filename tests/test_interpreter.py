@@ -375,6 +375,35 @@ class TestBuiltins(unittest.TestCase):
         run_error("pop([]);")
         run_error("pop(1);")
 
+    def test_int_of_inf_nan_is_error(self):
+        # v0.4.1：inf/nan 不可转 int（曾 OverflowError/ValueError 裸 traceback）
+        inf = "let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }\n"
+        e = run_error(inf + "print(int(x));")
+        self.assertIn("无法将 inf 转换为 int", e.message)
+        e = run_error(inf + "print(int(x - x));")
+        self.assertIn("无法将 nan 转换为 int", e.message)
+
+    def test_float_of_huge_int_is_error(self):
+        # v0.4.1：超出 float64 范围（曾 OverflowError 裸 traceback）
+        src = ("let n = 2; for (let i in [1, 10]) { n = n * n; }\n"
+               "print(float(n));")
+        e = run_error(src)
+        self.assertIn("无法转换为 float", e.message)
+
+    def test_float_overflow_currently_yields_inf(self):
+        # 记录在案待决：浮点溢出为 IEEE 宿主语义（inf/nan）
+        inf = "let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }\n"
+        self.assertEqual(run(inf + "print(x, x - x, x % 2);"),
+                         "inf nan nan\n")
+
+    def test_input_no_newline_eof_and_long_line(self):
+        # 无换行 EOF：最后一行不带换行也能读到
+        self.assertEqual(run("print(input());", stdin="abc"), "abc\n")
+        # 超长行
+        long_line = "x" * 100000 + "\n"
+        self.assertEqual(run("print(len(input()));", stdin=long_line),
+                         "100000\n")
+
     def test_input_eof_returns_null(self):
         # v0.3：EOF 返回 null，区别于空行 ""
         self.assertEqual(run("print(input());"), "null\n")

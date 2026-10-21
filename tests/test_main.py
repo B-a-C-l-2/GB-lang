@@ -55,5 +55,23 @@ class TestParseRecursion(unittest.TestCase):
         self.assertNotIn("Traceback", err.getvalue())
 
 
+class TestNonUtf8Source(unittest.TestCase):
+    """v0.4.1：非 UTF-8 源文件报友好错误，不输出裸 traceback。"""
+
+    def test_gbk_file_reports_friendly_error(self):
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write('print("中文");'.encode("gbk"))
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = main(["gb", path])
+        finally:
+            os.unlink(path)
+        self.assertEqual(code, 1)
+        self.assertIn("UTF-8", err.getvalue())
+        self.assertNotIn("Traceback", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
