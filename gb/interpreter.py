@@ -547,6 +547,15 @@ class Interpreter:
                     e.line = node.line
                     e.col = node.col
                 raise
+            except OverflowError:
+                # v0.4.5：内建内部的宿主数值溢出，统一为语言错误
+                raise GbError("浮点溢出", node.line, node.col) from None
+            except ValueError as e:
+                # v0.4.5：内建内部的宿主解析/编码失败（UnicodeError 也是
+                # ValueError 子类）；禁止裸 traceback，位置取调用起点
+                raise GbError(
+                    f"内建函数 {callee.name} 内部错误：{e}",
+                    node.line, node.col) from None
 
         if isinstance(callee, StructDef):
             if n != len(callee.fields):
