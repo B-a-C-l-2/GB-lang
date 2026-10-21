@@ -388,6 +388,40 @@ class TestCallStackFrames(unittest.TestCase):
         self.assertEqual(e.gb_frames, [("f", 2, 7)])
 
 
+class TestCyclicReference(unittest.TestCase):
+    """v0.3.1：禁止循环引用，遍历侧检测；无环的共享引用（菱形）不受影响。"""
+
+    def test_display_cyclic_array_is_error(self):
+        e = run_error("let a = []; push(a, a); print(a);")
+        self.assertIn("循环引用", e.message)
+
+    def test_display_diamond_sharing_is_fine(self):
+        src = "let b = [1]; let a = [b, b]; print(a, a == [b, b]);"
+        self.assertEqual(run(src), "[[1], [1]] true\n")
+
+    def test_str_cyclic_is_error(self):
+        run_error("let a = []; push(a, a); print(str(a));")
+
+    def test_equal_cyclic_arrays_is_error(self):
+        src = ("let a = []; push(a, a);"
+               "let b = []; push(b, b); print(a == b);")
+        e = run_error(src)
+        self.assertIn("循环引用", e.message)
+
+    def test_compare_cyclic_arrays_is_error(self):
+        src = ("let a = []; push(a, a);"
+               "let b = []; push(b, b); print(a < b);")
+        run_error(src)
+
+    def test_struct_instance_cycle_is_error(self):
+        run_error("struct N { next } let n = N(null); n.next = n; print(n);")
+
+    def test_mixed_array_struct_cycle_is_error(self):
+        src = ("struct B { v } let a = []; let b = B(null);"
+               "b.v = a; push(a, b); print(a);")
+        run_error(src)
+
+
 class TestEndToEnd(unittest.TestCase):
     def test_design_example(self):
         src = """

@@ -83,7 +83,7 @@ def _truthy(v):
     return v is not False and v is not None
 
 
-def _gb_equal(a, b):
+def _gb_equal(a, b, line=0, col=0, _seen=None):
     if a is None:
         return b is None
     if isinstance(a, bool):
@@ -93,23 +93,46 @@ def _gb_equal(a, b):
     if isinstance(a, str):
         return isinstance(b, str) and a == b
     if isinstance(a, list):
-        return (isinstance(b, list) and len(a) == len(b)
-                and all(_gb_equal(x, y) for x, y in zip(a, b)))
+        if not isinstance(b, list) or len(a) != len(b):
+            return False
+        # v0.3.1：禁止循环引用。_seen 记录递归路径上的 (id(a), id(b))
+        # 对，再次遇到同一对即成环；菱形共享不受影响
+        if _seen is None:
+            _seen = set()
+        pair = (id(a), id(b))
+        if pair in _seen:
+            raise GbError("存在循环引用，无法比较", line, col)
+        _seen.add(pair)
+        try:
+            return all(_gb_equal(x, y, line, col, _seen)
+                       for x, y in zip(a, b))
+        finally:
+            _seen.discard(pair)
     # struct 实例与函数值：身份比较
     return a is b
 
 
-def _gb_compare(a, b, line, col):
+def _gb_compare(a, b, line, col, _seen=None):
     """有序比较，返回 -1/0/1；不可比较则运行时错误。"""
     if _is_num(a) and _is_num(b):
         return (a > b) - (a < b)
     if isinstance(a, str) and isinstance(b, str):
         return (a > b) - (a < b)
     if isinstance(a, list) and isinstance(b, list):
-        for x, y in zip(a, b):
-            c = _gb_compare(x, y, line, col)
-            if c != 0:
-                return c
+        # v0.3.1：禁止循环引用，同 _gb_equal
+        if _seen is None:
+            _seen = set()
+        pair = (id(a), id(b))
+        if pair in _seen:
+            raise GbError("存在循环引用，无法比较", line, col)
+        _seen.add(pair)
+        try:
+            for x, y in zip(a, b):
+                c = _gb_compare(x, y, line, col, _seen)
+                if c != 0:
+                    return c
+        finally:
+            _seen.discard(pair)
         return (len(a) > len(b)) - (len(a) < len(b))
     raise GbError("这两个类型的值不能使用大小比较", line, col)
 
@@ -367,9 +390,9 @@ class Interpreter:
                 return a % b
             raise GbError("% 只能用于数值", line, col)
         if op == "==":
-            return _gb_equal(a, b)
+            return _gb_equal(a, b, line, col)
         if op == "!=":
-            return not _gb_equal(a, b)
+            return not _gb_equal(a, b, line, col)
         if op in ("<", "<=", ">", ">="):
             c = _gb_compare(a, b, line, col)
             return {"<": c < 0, "<=": c <= 0,
