@@ -1,5 +1,6 @@
 """GB 树遍历解释器：遍历 AST 求值。"""
 
+import math
 import sys
 
 from gb import ast
@@ -88,6 +89,14 @@ def _is_num(v):
 def _truthy(v):
     """仅 false 和 null 为假。"""
     return v is not False and v is not None
+
+
+def _check_finite(v, line, col):
+    """v0.4.2：浮点运算结果为 inf/nan（溢出）时报运行时错误；
+    int 结果（精度随宿主，无溢出）不检查。"""
+    if isinstance(v, float) and not math.isfinite(v):
+        raise GbError("浮点溢出", line, col)
+    return v
 
 
 def _gb_equal(a, b, line=0, col=0, _seen=None):
@@ -389,23 +398,24 @@ class Interpreter:
             if isinstance(a, str) and isinstance(b, str):
                 return a + b
             if _is_num(a) and _is_num(b):
-                return a + b
+                return _check_finite(a + b, line, col)
             raise GbError("+ 只能用于数值或两个字符串", line, col)
         if op in ("-", "*"):
             if _is_num(a) and _is_num(b):
-                return a - b if op == "-" else a * b
+                return _check_finite(a - b if op == "-" else a * b,
+                                     line, col)
             raise GbError(f"{op} 只能用于数值", line, col)
         if op == "/":
             if _is_num(a) and _is_num(b):
                 if b == 0:
                     raise GbError("除数为零", line, col)
-                return a / b
+                return _check_finite(a / b, line, col)
             raise GbError("/ 只能用于数值", line, col)
         if op == "%":
             if _is_num(a) and _is_num(b):
                 if b == 0:
                     raise GbError("对零取模", line, col)
-                return a % b
+                return _check_finite(a % b, line, col)
             raise GbError("% 只能用于数值", line, col)
         if op == "==":
             return _gb_equal(a, b, line, col)

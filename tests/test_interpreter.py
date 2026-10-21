@@ -375,13 +375,29 @@ class TestBuiltins(unittest.TestCase):
         run_error("pop([]);")
         run_error("pop(1);")
 
-    def test_int_of_inf_nan_is_error(self):
-        # v0.4.1：inf/nan 不可转 int（曾 OverflowError/ValueError 裸 traceback）
-        inf = "let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }\n"
-        e = run_error(inf + "print(int(x));")
-        self.assertIn("无法将 inf 转换为 int", e.message)
-        e = run_error(inf + "print(int(x - x));")
-        self.assertIn("无法将 nan 转换为 int", e.message)
+    def test_float_overflow_is_error(self):
+        # v0.4.2：浮点运算结果为 inf/nan 时报「浮点溢出」
+        # x == 1e308（有限），再乘/加/除即溢出
+        big = "let x = 10.0; for (let i in [1, 307]) { x = x * 10.0; }\n"
+        for tail in ("print(x * 10.0);", "print(x + x);", "print(x / 0.5);"):
+            e = run_error(big + tail)
+            self.assertIn("浮点溢出", e.message)
+        # 循环内累乘溢出同样报错
+        run_error("let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }")
+
+    def test_int_arithmetic_never_overflows(self):
+        # int 精度随宿主，无溢出（2^1024 共 309 位）
+        src = ("let n = 2; for (let i in [1, 10]) { n = n * n; }\n"
+               "print(len(str(n)));")
+        self.assertEqual(run(src), "309\n")
+
+    def test_int_of_inf_nan_defensive(self):
+        # v0.4.1 防御性分支：v0.4.2 后 inf/nan 在语言中无法构造，
+        # 直接测 Python 层
+        from gb.builtins import _to_int
+        for v in (float("inf"), float("nan")):
+            with self.assertRaises(GbError):
+                _to_int([v])
 
     def test_float_of_huge_int_is_error(self):
         # v0.4.1：超出 float64 范围（曾 OverflowError 裸 traceback）
@@ -389,12 +405,6 @@ class TestBuiltins(unittest.TestCase):
                "print(float(n));")
         e = run_error(src)
         self.assertIn("无法转换为 float", e.message)
-
-    def test_float_overflow_currently_yields_inf(self):
-        # 记录在案待决：浮点溢出为 IEEE 宿主语义（inf/nan）
-        inf = "let x = 10.0; for (let i in [1, 308]) { x = x * 10.0; }\n"
-        self.assertEqual(run(inf + "print(x, x - x, x % 2);"),
-                         "inf nan nan\n")
 
     def test_input_no_newline_eof_and_long_line(self):
         # 无换行 EOF：最后一行不带换行也能读到
