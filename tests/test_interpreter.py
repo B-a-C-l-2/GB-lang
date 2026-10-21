@@ -391,6 +391,18 @@ class TestBuiltins(unittest.TestCase):
                "print(len(str(n)));")
         self.assertEqual(run(src), "309\n")
 
+    def test_huge_int_literal_and_conversion(self):
+        # v0.4.3：解除宿主 int↔str 4300 位限制，字面量与 int() 均可用
+        big = "9" * 5000
+        self.assertEqual(run(f"print(len(str({big})));"), "5000\n")
+        self.assertEqual(run(f'print(len(str(int("{big}"))));'), "5000\n")
+
+    def test_huge_int_display_beyond_host_limit(self):
+        # v0.4.3：2^16384 约 4933 位，print/str 不再抛裸 ValueError
+        src = ("let n = 2; for (let i in [1, 14]) { n = n * n; }\n"
+               "print(len(str(n)) > 4300);")
+        self.assertEqual(run(src), "true\n")
+
     def test_int_of_inf_nan_defensive(self):
         # v0.4.1 防御性分支：v0.4.2 后 inf/nan 在语言中无法构造，
         # 直接测 Python 层
