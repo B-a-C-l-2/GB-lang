@@ -1,7 +1,13 @@
 """GB 运行时值、内建函数与显示格式。"""
 
 import math
+import re
 import sys
+
+# v0.3.1：int/float 的字符串解析严格匹配 GB 数值字面量形式（可选前导 -），
+# 拒绝 Python 扩展形式（全角数字、下划线、空白、+ 号、nan/inf、科学计数法）
+_INT_TEXT = re.compile(r"-?[0-9]+$")
+_FLOAT_TEXT = re.compile(r"-?([0-9]+|[0-9]+\.[0-9]+)$")
 
 
 class GbError(Exception):
@@ -139,10 +145,9 @@ def _to_int(args):
     if isinstance(v, float):
         return math.trunc(v)
     if isinstance(v, str):
-        try:
+        if _INT_TEXT.match(v):
             return int(v, 10)
-        except ValueError:
-            pass
+        raise GbError(f"无法将 {display(v)} 转换为 int")
     raise GbError(f"无法将 {display(v)} 转换为 int")
 
 
@@ -153,10 +158,9 @@ def _to_float(args):
     if isinstance(v, (int, float)):
         return float(v)
     if isinstance(v, str):
-        try:
+        if _FLOAT_TEXT.match(v):
             return float(v)
-        except ValueError:
-            pass
+        raise GbError(f"无法将 {display(v)} 转换为 float")
     raise GbError(f"无法将 {display(v)} 转换为 float")
 
 

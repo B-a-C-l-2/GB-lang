@@ -332,6 +332,26 @@ class TestBuiltins(unittest.TestCase):
         run_error('print(int("abc"));')
         run_error("print(int(true));")
 
+    def test_int_float_strict_string_parsing(self):
+        # v0.3.1：严格匹配 GB 字面量语法（可选前导 -）
+        src = 'print(int("-5"), int("007"), float("2"), float("-2.5"));'
+        self.assertEqual(run(src), "-5 7 2.0 -2.5\n")
+        # Python 扩展形式一律报错
+        for src in ('print(int("１２"));',   # 全角数字
+                    'print(int("1_0"));',    # 下划线
+                    'print(int(" 12"));',    # 首尾空白
+                    'print(int("12 "));',
+                    'print(int("+12"));',    # + 号
+                    'print(int("-"));',
+                    'print(int(""));',
+                    'print(float("nan"));',
+                    'print(float("inf"));',
+                    'print(float("1e3"));',  # 科学计数法
+                    'print(float("2."));',
+                    'print(float(".5"));',
+                    'print(float("1_0.5"));'):
+            run_error(src)
+
     def test_input(self):
         src = 'let name = input("name? "); print("hi " + name);'
         self.assertEqual(run(src, stdin="Bob\n"), "name? hi Bob\n")
