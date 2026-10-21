@@ -49,7 +49,10 @@ def _format_error(kind, message, source, line, col, got=None):
         text += f"，遇到 {got}"
     if not line:
         return text
-    lines = source.splitlines()
+    # v0.4.4：只按 \n 切行（与词法器一致；文本模式读取时 \r\n 已归一化）。
+    # splitlines() 会丢掉末尾空行，导致末行换行之后的 EOF 错误无源码行、
+    # 无 ^ 可显示
+    lines = source.split("\n")
     if 1 <= line <= len(lines):
         src_line = lines[line - 1]
         text += "\n" + src_line + "\n" + _pointer_line(src_line, col)

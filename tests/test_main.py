@@ -40,6 +40,35 @@ class TestPointerLine(unittest.TestCase):
         self.assertEqual(text.splitlines()[-1], " " * 14 + "^")
 
 
+class TestEofAfterTrailingNewline(unittest.TestCase):
+    """v0.4.4：EOF 落在末行换行之后时，仍打印（空）源码行与 ^ 指示。"""
+
+    def _run_source_bytes(self, data):
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "wb") as f:
+                f.write(data)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = main(["gb", path])
+        finally:
+            os.unlink(path)
+        return code, err.getvalue()
+
+    def test_newline_before_eof(self):
+        code, text = self._run_source_bytes(b"let x =\n")
+        self.assertEqual(code, 1)
+        self.assertIn("文件末尾", text)
+        # 末行为空：先一行空串，再一行仅 ^（print 末尾另有换行）
+        self.assertTrue(text.endswith("\n\n^\n"), repr(text))
+
+    def test_no_newline_before_eof_unchanged(self):
+        code, text = self._run_source_bytes(b"let x =")
+        self.assertEqual(code, 1)
+        self.assertIn("文件末尾", text)
+        self.assertTrue(text.endswith("\nlet x =\n       ^\n"), repr(text))
+
+
 class TestParseRecursion(unittest.TestCase):
     """v0.3.1：解析阶段深层嵌套报友好错误，不输出裸 traceback。"""
 
