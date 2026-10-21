@@ -475,8 +475,12 @@ class Interpreter:
         self._check_int_index(start, node.line, node.col)
         self._check_int_index(end, node.line, node.col)
         length = len(obj)
-        lo = min(max(start, 0), length)
-        hi = min(max(end, 0), length)
+        # v0.4.1：负端点为运行时错误（原先静默钳到 0，与「不支持负
+        # 下标」矛盾）；正越界端点仍钳制到 len
+        if start < 0 or end < 0:
+            raise GbError("切片端点不能为负", node.line, node.col)
+        lo = min(start, length)
+        hi = min(end, length)
         if lo >= hi:
             return [] if isinstance(obj, list) else ""
         return obj[lo:hi]

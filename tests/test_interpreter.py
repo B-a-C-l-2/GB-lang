@@ -132,6 +132,17 @@ class TestIndexAndSlice(unittest.TestCase):
                          "abc \n")
         self.assertEqual(run("print([1, 2][9:3]);"), "[]\n")
 
+    def test_slice_negative_endpoint_is_error(self):
+        # v0.4.1：负端点报错而非静默钳到 0
+        for src in ("let a = [1, 2, 3]; print(a[0:-1]);",
+                    "let a = [1, 2, 3]; print(a[-5:2]);",
+                    'print("abcdef"[0:-1]);',
+                    'print("abc"[-1:-1]);'):
+            e = run_error(src)
+            self.assertIn("切片端点不能为负", e.message)
+        # 正越界仍钳制，不受影响
+        self.assertEqual(run("print([1, 2, 3][0:99]);"), "[1, 2, 3]\n")
+
     def test_array_mutation(self):
         src = "let a = [1, 2]; a[0] = 9; print(a);"
         self.assertEqual(run(src), "[9, 2]\n")
