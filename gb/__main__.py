@@ -1,6 +1,7 @@
 """GB 命令行入口：python -m gb <file.gb>"""
 
 import errno
+import os
 import sys
 import unicodedata
 
@@ -119,20 +120,42 @@ def _on_pipe_closed():
     return 1
 
 
+def _report_host_error(e):
+    """v0.4.5：未知宿主异常的最后一道网；GB_DEBUG=1 时保留 traceback。"""
+    if os.environ.get("GB_DEBUG"):
+        raise
+    print(f"内部错误（宿主异常）：{type(e).__name__}: {e}",
+          file=sys.stderr)
+    return 1
+
+
+def _run_cli(argv):
+    """CLI 进程边界（v0.4.5）：已知 I/O 中断静默退出，未知宿主异常兜底。
+
+    语义错误应在解释器边界翻译成 GbError（带行列号）；这里只处理
+    “不该发生”的宿主异常，保证用户看不到裸 traceback。
+    """
+    try:
+        return main(argv)
+    except BrokenPipeError:
+        return _on_pipe_closed()
+    except OSError as e:
+        # v0.4.4：Windows 上写已关闭的管道常报 EINVAL，而非
+        # BrokenPipeError（实测缓冲写路径）；同样按管道关闭处理
+        if e.errno == errno.EINVAL:
+            return _on_pipe_closed()
+        return _report_host_error(e)
+    except KeyboardInterrupt:
+        # v0.4.5：用户中断静默退出（128 + SIGINT）
+        return 130
+    except Exception as e:
+        return _report_host_error(e)
+
+
 if __name__ == "__main__":
     # Windows 控制台默认 GBK，统一为 UTF-8 输入输出
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
         sys.stdin.reconfigure(encoding="utf-8")
-    try:
-        code = main(sys.argv)
-    except BrokenPipeError:
-        code = _on_pipe_closed()
-    except OSError as e:
-        # v0.4.4：Windows 上写已关闭的管道常报 EINVAL，而非
-        # BrokenPipeError（实测缓冲写路径）；同样按管道关闭处理
-        if e.errno != errno.EINVAL:
-            raise
-        code = _on_pipe_closed()
-    sys.exit(code)
+    sys.exit(_run_cli(sys.argv))

@@ -2,6 +2,7 @@
 """入口层错误格式测试：^ 指示行按显示宽度对齐（v0.3）。"""
 
 import contextlib
+import errno
 import io
 import os
 import subprocess
@@ -9,6 +10,7 @@ import sys
 import tempfile
 import unittest
 
+import gb.__main__ as cli
 from gb.__main__ import _format_error, _pointer_line, main
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -123,6 +125,61 @@ class TestBrokenPipe(unittest.TestCase):
         rc, err = self._closed_pipe_child(unbuffered=True)
         self.assertEqual(rc, 1)
         self.assertNotIn(b"Traceback", err)
+
+
+class TestCliBoundary(unittest.TestCase):
+    """v0.4.5：CLI 兜底未知宿主异常，不泄漏裸 traceback。"""
+
+    def _run_raising(self, exc):
+        old_main = cli.main
+
+        def boom(argv):
+            raise exc
+
+        cli.main = boom
+        try:
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                code = cli._run_cli(["gb", "x.gb"])
+        finally:
+            cli.main = old_main
+        return code, err.getvalue()
+
+    def test_unknown_exception_is_reported(self):
+        code, text = self._run_raising(RuntimeError("boom"))
+        self.assertEqual(code, 1)
+        self.assertIn("内部错误（宿主异常）：RuntimeError: boom", text)
+        self.assertNotIn("Traceback", text)
+
+    def test_non_pipe_oserror_is_reported(self):
+        code, text = self._run_raising(OSError(errno.EIO, "io"))
+        self.assertEqual(code, 1)
+        self.assertIn("内部错误（宿主异常）：OSError", text)
+        self.assertNotIn("Traceback", text)
+
+    def test_keyboard_interrupt_is_silent(self):
+        code, text = self._run_raising(KeyboardInterrupt())
+        self.assertEqual(code, 130)
+        self.assertEqual(text, "")
+
+    def test_debug_env_reraises(self):
+        old_main = cli.main
+        old_debug = os.environ.get("GB_DEBUG")
+
+        def boom(argv):
+            raise RuntimeError("boom")
+
+        cli.main = boom
+        os.environ["GB_DEBUG"] = "1"
+        try:
+            with self.assertRaises(RuntimeError):
+                cli._run_cli(["gb", "x.gb"])
+        finally:
+            cli.main = old_main
+            if old_debug is None:
+                os.environ.pop("GB_DEBUG", None)
+            else:
+                os.environ["GB_DEBUG"] = old_debug
 
 
 class TestBomSource(unittest.TestCase):
