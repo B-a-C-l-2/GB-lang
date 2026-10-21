@@ -1,5 +1,6 @@
 """GB 命令行入口：python -m gb <file.gb>"""
 
+import errno
 import sys
 import unicodedata
 
@@ -105,10 +106,30 @@ def main(argv):
     return 0
 
 
+def _on_pipe_closed():
+    """下游（如 head）提前关闭管道：静默以非零码退出。先关闭 stdout，
+    避免解释器退出时再次 flush 报 "Exception ignored" 噪声。"""
+    try:
+        sys.stdout.close()
+    except OSError:
+        pass
+    return 1
+
+
 if __name__ == "__main__":
     # Windows 控制台默认 GBK，统一为 UTF-8 输入输出
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
         sys.stderr.reconfigure(encoding="utf-8")
         sys.stdin.reconfigure(encoding="utf-8")
-    sys.exit(main(sys.argv))
+    try:
+        code = main(sys.argv)
+    except BrokenPipeError:
+        code = _on_pipe_closed()
+    except OSError as e:
+        # v0.4.4：Windows 上写已关闭的管道常报 EINVAL，而非
+        # BrokenPipeError（实测缓冲写路径）；同样按管道关闭处理
+        if e.errno != errno.EINVAL:
+            raise
+        code = _on_pipe_closed()
+    sys.exit(code)

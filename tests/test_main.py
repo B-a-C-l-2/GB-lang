@@ -4,10 +4,14 @@
 import contextlib
 import io
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 
 from gb.__main__ import _format_error, _pointer_line, main
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 class TestPointerLine(unittest.TestCase):
@@ -53,6 +57,43 @@ class TestParseRecursion(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("嵌套过深", err.getvalue())
         self.assertNotIn("Traceback", err.getvalue())
+
+
+class TestBrokenPipe(unittest.TestCase):
+    """v0.4.4：下游管道提前关闭（如 | head）时静默退出，无裸 traceback。"""
+
+    def _closed_pipe_child(self, unbuffered):
+        """20 万行确保写满管道缓冲：下游读一行即关闭，返回子进程结果。"""
+        fd, path = tempfile.mkstemp(suffix=".gb")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write("for (let i in [1, 200000]) { print(i); }\n")
+            argv = [sys.executable] + (["-u"] if unbuffered else []) + \
+                ["-m", "gb", path]
+            p = subprocess.Popen(
+                argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                cwd=_REPO_ROOT)
+            p.stdout.readline()  # 只读一行便关闭接收端
+            p.stdout.close()
+            p.wait(timeout=30)
+            err = p.stderr.read()
+            p.stderr.close()
+            return p.returncode, err
+        finally:
+            os.unlink(path)
+
+    def test_downstream_closed_emits_no_traceback(self):
+        # 缓冲写路径（Windows 实测抛 OSError EINVAL）
+        rc, err = self._closed_pipe_child(unbuffered=False)
+        self.assertEqual(rc, 1)
+        self.assertNotIn(b"Traceback", err)
+        self.assertNotIn(b"Exception ignored", err)
+
+    def test_downstream_closed_unbuffered(self):
+        # 无缓冲写路径（BrokenPipeError）
+        rc, err = self._closed_pipe_child(unbuffered=True)
+        self.assertEqual(rc, 1)
+        self.assertNotIn(b"Traceback", err)
 
 
 class TestBomSource(unittest.TestCase):
