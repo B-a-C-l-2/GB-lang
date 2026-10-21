@@ -132,6 +132,16 @@ class TestIndexAndSlice(unittest.TestCase):
                          "abc \n")
         self.assertEqual(run("print([1, 2][9:3]);"), "[]\n")
 
+    def test_slice_endpoint_type_error_wording(self):
+        # v0.4.4：切片路径的类型错误与「切片端点不能为负」措辞统一
+        e = run_error("let a = [1, 2, 3]; print(a[1.0:2]);")
+        self.assertIn("切片端点必须是 int", e.message)
+        e = run_error('let a = [1, 2, 3]; print(a[1:true]);')
+        self.assertIn("切片端点必须是 int", e.message)
+        # 普通下标措辞不变
+        e = run_error('print("ab"[1.0]);')
+        self.assertIn("下标必须是 int", e.message)
+
     def test_slice_negative_endpoint_is_error(self):
         # v0.4.1：负端点报错而非静默钳到 0
         for src in ("let a = [1, 2, 3]; print(a[0:-1]);",

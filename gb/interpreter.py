@@ -470,9 +470,10 @@ class Interpreter:
             raise GbError("赋值目标非法", node.line, node.col)
         return value
 
-    def _check_int_index(self, idx, line, col):
+    def _check_int_index(self, idx, line, col, what="下标"):
+        """下标/切片端点都必须是 int；what 用于区分报错措辞。"""
         if not _is_num(idx) or isinstance(idx, float):
-            raise GbError("下标必须是 int", line, col)
+            raise GbError(f"{what}必须是 int", line, col)
 
     def _index(self, node, env):
         obj = self._eval(node.object, env)
@@ -490,8 +491,8 @@ class Interpreter:
         end = self._eval(node.end, env)
         if not isinstance(obj, (list, str)):
             raise GbError("只有数组和字符串可以切片", node.line, node.col)
-        self._check_int_index(start, node.line, node.col)
-        self._check_int_index(end, node.line, node.col)
+        self._check_int_index(start, node.line, node.col, "切片端点")
+        self._check_int_index(end, node.line, node.col, "切片端点")
         length = len(obj)
         # v0.4.1：负端点为运行时错误（原先静默钳到 0，与「不支持负
         # 下标」矛盾）；正越界端点仍钳制到 len
