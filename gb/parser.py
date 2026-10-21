@@ -270,10 +270,12 @@ class Parser:
 
     def _assignment(self):
         expr = self._or()
-        if self._match("="):
+        eq = self._match("=")
+        if eq is not None:
             value = self._assignment()
             if not isinstance(expr, (ast.Var, ast.Index, ast.Get)):
-                raise ParseError(self._current(), "赋值目标非法")
+                # v0.4.3：位置指向 =，而非右值之后的 token
+                raise ParseError(eq, "赋值目标非法")
             return ast.Assign(expr, value, expr.line, expr.col)
         return expr
 

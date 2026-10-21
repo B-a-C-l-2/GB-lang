@@ -56,6 +56,12 @@ class TestParser(unittest.TestCase):
         with self.assertRaises(ParseError):
             parse("1 = 2;")
 
+    def test_illegal_assignment_target_position(self):
+        # v0.4.3：位置指向 =，而非右值之后的 token
+        e = parse_error("a + b = 1;")
+        self.assertEqual((e.line, e.col), (1, 7))
+        self.assertEqual(e.got, '"="')
+
     def test_range_for_all_brackets(self):
         for interval in ("[0, 10]", "[0, 10)", "(0, 10]", "(0, 10)"):
             node = parse_one(f"for (let i in {interval}) {{ }}")
