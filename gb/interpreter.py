@@ -225,42 +225,53 @@ class Interpreter:
             finally:
                 self.loop_depth -= 1
 
-        elif t is ast.ForRange:
-            iv = node.interval
-            start = self._eval(iv.start, env)
-            end = self._eval(iv.end, env)
-            if not _is_num(start) or isinstance(start, float) \
-                    or not _is_num(end) or isinstance(end, float):
-                raise GbError("区间端点必须是 int", iv.line, iv.col)
-            lo = start if iv.left_inclusive else start + 1
-            hi = end if iv.right_inclusive else end - 1
+        elif t is ast.ForIn:
+            it = node.iterable
 
             loop_env = Environment(env)
             if node.declare:
                 # let：循环专用环境中的块级变量
-                loop_env.declare(node.name, lo,
+                loop_env.declare(node.name, None,
                                  node.name_line, node.name_col)
 
                 def bind(v):
                     loop_env.vars[node.name] = v
             else:
-                # 无 let：向外层已声明变量赋值；先赋起点（与 C 风格 for
-                # 的初始化子句一致），未声明时报错位置指向变量名
+                # 无 let：向外层已声明变量赋值；未声明时报错位置指向变量名
                 def bind(v):
                     env.assign(node.name, v,
                                node.name_line, node.name_col)
 
-            bind(lo)
-            i = lo
+            if type(it) is ast.Interval:
+                start = self._eval(it.start, env)
+                end = self._eval(it.end, env)
+                if not _is_num(start) or isinstance(start, float) \
+                        or not _is_num(end) or isinstance(end, float):
+                    raise GbError("区间端点必须是 int", it.line, it.col)
+                lo = start if it.left_inclusive else start + 1
+                hi = end if it.right_inclusive else end - 1
+                values = range(lo, hi + 1)
+                if not node.declare:
+                    # 区间 for 无 let：先赋起点（与 C 风格 for 的初始化
+                    # 子句一致），即使循环零次
+                    bind(lo)
+            else:
+                # v0.4 数组遍历：快照遍历——循环前浅拷贝，循环体内的
+                # push/pop/清空不影响本轮的元素序列与轮数
+                arr = self._eval(it, env)
+                if not isinstance(arr, list):
+                    raise GbError("for 只能遍历区间或数组",
+                                  it.line, it.col)
+                values = list(arr)
+
             self.loop_depth += 1
             try:
-                while i <= hi:
-                    bind(i)
+                for v in values:
+                    bind(v)
                     try:
                         self._exec_body(node.body, loop_env)
                     except _Continue:
                         pass
-                    i += 1
             except _Break:
                 pass
             finally:

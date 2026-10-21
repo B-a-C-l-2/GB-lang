@@ -197,12 +197,12 @@ class Parser:
                 self._advance()  # let
             name = self._expect("IDENT").value
             self._expect("in")
-            interval = self._interval()
+            iterable = self._interval_or_expr()
             self._expect(")")
             body = self._block_body()
-            return ast.ForRange(name, interval, body, is_let,
-                                tok.line, tok.col,
-                                name_tok.line, name_tok.col)
+            return ast.ForIn(name, iterable, body, is_let,
+                             tok.line, tok.col,
+                             name_tok.line, name_tok.col)
 
         # C 风格 for
         if self._match(";"):
@@ -217,6 +217,18 @@ class Parser:
         self._expect(")")
         body = self._block_body()
         return ast.ForC(init, condition, update, body, tok.line, tok.col)
+
+    def _interval_or_expr(self):
+        """in 右侧（v0.4）：形如 [e1, e2] / (e1, e2) 的一律解析为区间
+        （两元素数组字面量因此无法在 for 头中内联遍历）；其余按一般
+        表达式解析，运行时求值必须是数组。试探解析失败则回溯重解析。"""
+        if self._current().type in ("[", "("):
+            pos = self._pos
+            try:
+                return self._interval()
+            except ParseError:
+                self._pos = pos  # 不是区间形状，按一般表达式重解析
+        return self._expression()
 
     def _interval(self):
         open_tok = self._current()

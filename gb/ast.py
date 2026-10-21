@@ -84,14 +84,16 @@ class ForC:
 
 
 @dataclass
-class ForRange:
-    """区间 for：for ((let) name in interval) body
+class ForIn:
+    """for ((let) name in iterable) body（v0.4 由 ForRange 更名）
 
-    declare 为 True 时 name 是循环专用环境中的新变量；否则向外层赋值。
-    name_line/name_col 指向标识符，用于无 let 时的赋值错误定位。
+    iterable 为 Interval（区间 for）或求值为数组的一般表达式（数组遍历，
+    快照语义）。declare 为 True 时 name 是循环专用环境中的新变量；否则
+    向外层赋值。name_line/name_col 指向标识符，用于无 let 时的赋值错误
+    定位。
     """
     name: str
-    interval: object       # Interval
+    iterable: object       # Interval 或一般表达式（v0.4）
     body: list
     declare: bool = True
     line: int = 0
