@@ -1,10 +1,10 @@
-# GB 语言设计（v0.4.4）
+# GB 语言设计（v0.4.5）
 
 ## 1. 目标与原则
 
 一门解释型通用脚本语言，用于个人 demo。原则：**简单优先，不过度设计**。
 
-## 2. 最终功能集（v0.4.4 范围）
+## 2. 最终功能集（v0.4.5 范围）
 
 - 基本类型：整数、浮点数、布尔、字符串、null
 - 复合类型：动态数组（`push`/`pop`）、struct（纯数据结构）；数组与字符串支持切片 `[a:b]`
@@ -31,6 +31,7 @@
   ```
 
 - 词法/语法/运行时错误输出到 stderr，进程非零退出；语言本身无异常处理机制，运行时错误即终止
+- 错误模型（v0.4.5）：运行时错误统一为 `GbError`；内建调用等语义边界把已知宿主异常（`OverflowError`、`ValueError` 等）翻译成带位置的消息。CLI 对未知宿主 `Exception` 兜底为「内部错误（宿主异常）：类型: 消息」并以退出码 1 结束，设置 `GB_DEBUG=1` 时重新抛出以保留 traceback；`KeyboardInterrupt` 静默退出 130。兜底只是安全网，未知异常仍视为解释器缺陷，不替代边界翻译
 - 源文件按 UTF-8 读取，容忍 UTF-8 BOM（v0.4.3，按 utf-8-sig 解码）；非法 UTF-8（如 GBK 文件）由入口报「源文件不是有效的 UTF-8」并非零退出（v0.4.1，属文件级错误，无行列号）
 - 错误定位（v0.2）：
   - Token 与 AST 节点均记录行号、列号；列从 1 开始，按 Unicode 码点**字符数**（不是终端显示宽度），Tab 计 1 列；位置取语法结构首 token 的位置
@@ -190,6 +191,11 @@ v0.2 另经讨论明确不做 **C/C++ 式函数前置声明**（`fun f();` 空�
 
 ## 12. 变更记录
 
+- **v0.4.5（2026-10-21，宿主异常边界与 CLI 兜底）**：
+  1. 内建调用统一守卫：`_call` 捕获内建函数抛出的 `OverflowError`、`ValueError`（含 `UnicodeError`），翻译为带调用点行列号的 `GbError`；`GbError` 原样保留，已有专有文案不变。
+  2. CLI 兜底：入口新增 `_run_cli`，捕获未知宿主 `Exception`（含非管道 `OSError`），输出「内部错误（宿主异常）：类型: 消息」并以 1 退出；`GB_DEBUG=1` 时重新抛出以保留 traceback；`KeyboardInterrupt` 静默退出 130。v0.4.4 的管道关闭处理（`BrokenPipeError` / `OSError(EINVAL)`）保持静默退出 1。
+  3. 测试：新增宿主边界用例（内建守卫、固定种子随机表达式、CLI 子进程断言 stderr 不含 `Traceback`），覆盖大整数、浮点溢出、非 UTF-8 stdin、BOM、for-in 回退、EOF 指示等路径；原有 141 项测试全部保留。
+  4. 原则：兜底只保证用户不看到裸 traceback，语义错误仍须在边界翻译成带位置的消息；未知宿主异常视为解释器缺陷，开发时用 `GB_DEBUG=1` 复现。
 - **v0.4.4（2026-10-21，边界修补：宿主异常泄漏与诊断细节）**：
   1. 超大 int 参与浮点运算时的 `OverflowError` 统一为运行时错误：int/int 的 `/` 与 int/float 混合的 `+ - * %`（两种操作数顺序）中，宿主在 int→float 转换处直接抛异常，此前绕过 inf/nan 检查泄漏裸 traceback；现报「浮点溢出」，位置取表达式起点（补齐 v0.4.2 第 1 条对该入口的覆盖）。比较运算不经过 float 转换，大 int 与 float 的 `<`/`==` 等行为不变。
   2. 下游管道提前关闭（如 `python -m gb big.gb | head`）时入口静默以退出码 1 结束：POSIX 写路径抛 `BrokenPipeError`，Windows 缓冲写路径实测抛 `OSError(EINVAL)`，两者统一捕获并关闭 stdout，消除退出时再次 flush 的 `Exception ignored` 噪声，不再输出裸 traceback。
