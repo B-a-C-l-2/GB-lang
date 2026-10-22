@@ -540,6 +540,23 @@ checkStr("str 数组", str([1, 2]), "[1, 2]");
     let len = 5;
     check("内建可被 let 遮蔽", len, 5);
 }
+check("is_int 整数", is_int(5), true);
+check("is_int 可截断的浮点", is_int(2.9), true);
+check("is_int 数字字符串", is_int("12"), true);
+check("is_int 负号字符串", is_int("-5"), true);
+check("is_int 拒绝小数串", is_int("2.9"), false);
+check("is_int 拒绝空串", is_int(""), false);
+check("is_int 拒绝 bool", is_int(true), false);
+check("is_float 接受整数", is_float(2), true);
+check("is_float 接受小数串", is_float("-2.5"), true);
+check("is_float 拒绝科学计数法", is_float("1e3"), false);
+check("is_float 拒绝 nan", is_float("nan"), false);
+{
+    let raw = "42";
+    let value = 0;
+    if (is_int(raw)) { value = int(raw); }
+    check("判定后安全转换", value, 42);
+}
 
 // ---------------- 19. 求值顺序 ----------------
 
