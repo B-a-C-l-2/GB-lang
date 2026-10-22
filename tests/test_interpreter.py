@@ -353,6 +353,42 @@ class TestBuiltins(unittest.TestCase):
         run_error('print(int("abc"));')
         run_error("print(int(true));")
 
+    def test_is_int_is_float_predicates(self):
+        # v0.4.6：判定内建复用转换实现，规则与 int()/float() 恒一致
+        self.assertEqual(
+            run("print(is_int(5), is_int(2.9), is_int(-2.9), is_int(true));"),
+            "true true true false\n")
+        self.assertEqual(
+            run('print(is_int("12"), is_int("-5"), is_int("2.9"), '
+                'is_int(""));'),
+            "true true false false\n")
+        self.assertEqual(
+            run("print(is_int(null), is_int([1]), is_float(2), "
+                "is_float(2.5));"),
+            "false false true true\n")
+        self.assertEqual(
+            run('print(is_float("2"), is_float("-2.5"), is_float("1e3"), '
+                'is_float("nan"));'),
+            "true true false false\n")
+        self.assertEqual(
+            run('print(is_int("007"), is_float(" 2.5"), is_int("１２"));'),
+            "true false false\n")
+
+    def test_is_int_guards_conversion(self):
+        # 典型用法：先探测再转换，非法输入不终止程序
+        src = ('let raw = input();'
+               'if (is_int(raw)) { print("ok", int(raw) * 2); }'
+               'else { print("bad", str(raw)); }')
+        self.assertEqual(run(src, stdin="21\n"), "ok 42\n")
+        self.assertEqual(run(src, stdin="abc\n"), "bad abc\n")
+        self.assertEqual(run(src, stdin=""), "bad null\n")  # EOF 得 null
+
+    def test_is_int_is_float_arity(self):
+        e = run_error("print(is_int());")
+        self.assertIn("需要 1 个参数", e.message)
+        e = run_error("print(is_float(1, 2));")
+        self.assertIn("需要 1 个参数", e.message)
+
     def test_int_float_strict_string_parsing(self):
         # v0.3.1：严格匹配 GB 字面量语法（可选前导 -）
         src = 'print(int("-5"), int("007"), float("2"), float("-2.5"));'

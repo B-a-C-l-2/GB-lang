@@ -1,0 +1,134 @@
+// GB 性能测试脚本：与 benchmarks/bench.py 的算法逐行对应。
+//
+// 从 stdin 读两行：用例名 + 重复次数。输出 N 行 "case <名字> <校验和>"
+// （N 即重复次数）；重复次数读不到时按 1 次处理，用例名为 all 时跑全集。
+//
+// GB 没有时钟内建，计时由 benchmarks/compare.py 在外部完成：同一用例跑
+// 1 次与 4 次各量一次总时长，斜率即单次计算时间，进程启动开销被消掉。
+
+struct P { x, y }
+
+fun add3(a, b, c) { return a + b + c; }
+
+fun fib(n) {
+    if (n < 2) { return n; }
+    return fib(n - 1) + fib(n - 2);
+}
+
+fun case_arith() {
+    let acc = 0;
+    let i = 0;
+    while (i < 40000) {
+        acc = acc + i * 3 - (i % 7);
+        i = i + 1;
+    }
+    print("case arith", acc);
+}
+
+fun case_calls() {
+    let acc = 0;
+    let i = 0;
+    while (i < 20000) {
+        acc = acc + add3(i, i + 1, i + 2);
+        i = i + 1;
+    }
+    print("case calls", acc);
+}
+
+fun case_recur() {
+    print("case recur", fib(21));
+}
+
+fun case_arrays() {
+    let arr = [];
+    let i = 0;
+    while (i < 20000) {
+        push(arr, i % 100);
+        i = i + 1;
+    }
+    let s = 0;
+    for (let v in arr) { s = s + v; }
+    while (len(arr) > 0) { s = s + pop(arr); }
+    print("case arrays", s);
+}
+
+fun case_strings() {
+    let s = "";
+    let i = 0;
+    while (i < 6000) {
+        s = s + "abc";
+        i = i + 1;
+    }
+    let t = 0;
+    let j = 0;
+    while (j < 6000) {
+        t = t + len(s[0:10]);
+        j = j + 1;
+    }
+    print("case strings", len(s) + t);
+}
+
+fun case_structs() {
+    let acc = 0;
+    let i = 0;
+    while (i < 20000) {
+        let p = P(i, i * 2);
+        p.x = p.x + 1;
+        acc = acc + p.x + p.y;
+        i = i + 1;
+    }
+    print("case structs", acc);
+}
+
+fun case_sort() {
+    let n = 150;
+    let a = [];
+    let i = 0;
+    while (i < n) {
+        push(a, n - i);
+        i = i + 1;
+    }
+    for (let i = 0; i < n; i = i + 1) {
+        for (let j = 0; j < n - 1 - i; j = j + 1) {
+            if (a[j] > a[j + 1]) {
+                let t = a[j];
+                a[j] = a[j + 1];
+                a[j + 1] = t;
+            }
+        }
+    }
+    let s = 0;
+    for (let v in a) { s = s + v * (v % 3); }
+    print("case sort", s + a[0] * 1000000 + a[n - 1]);
+}
+
+fun run_case(name) {
+    if (name == "arith") { case_arith(); }
+    else if (name == "calls") { case_calls(); }
+    else if (name == "recur") { case_recur(); }
+    else if (name == "arrays") { case_arrays(); }
+    else if (name == "strings") { case_strings(); }
+    else if (name == "structs") { case_structs(); }
+    else if (name == "sort") { case_sort(); }
+}
+
+let which = input();
+let repsText = input();
+let reps = 1;
+if (is_int(repsText)) { reps = int(repsText); }
+
+let selected = [];
+if (which == null or which == "all") {
+    selected = ["arith", "calls", "recur", "arrays",
+                "strings", "structs", "sort"];
+} else {
+    selected = [which];
+}
+
+for (let name in selected) {
+    let k = 0;
+    while (k < reps) {
+        run_case(name);
+        k = k + 1;
+    }
+}
