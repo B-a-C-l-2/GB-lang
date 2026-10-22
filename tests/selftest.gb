@@ -1,0 +1,607 @@
+// GB 语言自测脚本
+//
+// 黑盒：只用 GB 公开的语法与内建函数，不依赖解释器内部实现。
+// 运行（项目根目录，一个命令跑完全部断言）：
+//
+//     python -m gb tests/selftest.gb
+//
+// 全部通过 -> 退出码 0；有失败 -> 打印失败项并故意触发除零错误，
+// 使退出码为 1（GB 没有 exit 内建，这是唯一的非零退出通道）。
+//
+// 覆盖：字面量与显示格式、变量与块级作用域、算术、比较与相等、
+// 逻辑与真假、字符串、数组、切片、struct、if / while / C 风格 for /
+// 区间 for / 数组遍历 for、break / continue、函数（递归、相互递归、
+// 闭包、声明提升）、内建函数、求值顺序、综合示例。
+//
+// 不在本脚本内（及原因）：
+//   - input：需要从 stdin 喂数据，同一进程里无法既喂输入又断言
+//   - 错误路径（语法错、运行时错、退出码）：GB 无异常机制，报错即终止
+//   - print 自身输出：进程内无法捕获 stdout
+// 以上三类由 Python 套件覆盖：python -m unittest discover -s tests
+
+// ---------------- 微型断言框架 ----------------
+
+let total = 0;
+let failed = 0;
+
+fun check(name, actual, expected) {
+    total = total + 1;
+    if (actual == expected) {
+        return true;
+    }
+    failed = failed + 1;
+    print("  [FAIL]", name, "| 期望:", str(expected), "| 实际:", str(actual));
+    return false;
+}
+
+// 比较 str(实际值)，用于验证显示格式
+fun checkStr(name, value, expected) {
+    return check(name, str(value), expected);
+}
+
+fun section(title) {
+    print("");
+    print("==", title);
+}
+
+// ---------------- 1. 字面量与显示格式 ----------------
+
+section("字面量与显示格式");
+checkStr("int 字面量", 42, "42");
+checkStr("负 int 字面量", -7, "-7");
+checkStr("float 字面量", 3.14, "3.14");
+checkStr("float 保留小数点", 2.0, "2.0");
+checkStr("bool true", true, "true");
+checkStr("bool false", false, "false");
+checkStr("null", null, "null");
+checkStr("字符串", "hello", "hello");
+checkStr("空字符串", "", "");
+checkStr("空数组", [], "[]");
+checkStr("数组显示", [1, 2, 3], "[1, 2, 3]");
+checkStr("嵌套数组显示", [1, [2, [3]]], "[1, [2, [3]]]");
+checkStr("混合数组显示", [null, true, "s", 1.5], "[null, true, s, 1.5]");
+checkStr("数组字面量尾逗号", len([1, 2, ]), "2");
+checkStr("转义 \\n", len("a\nb"), "3");
+checkStr("转义 \\t", len("a\tb"), "3");
+checkStr("转义 \\\"", len("\""), "1");
+checkStr("转义 \\\\", len("\\"), "1");
+
+// ---------------- 2. 变量与块级作用域 ----------------
+
+section("变量与块级作用域");
+let outerVar = 1;
+check("let 声明", outerVar, 1);
+{
+    let outerVar = 2;
+    check("块内同名遮蔽", outerVar, 2);
+    {
+        let outerVar = 3;
+        check("两层嵌套遮蔽", outerVar, 3);
+    }
+    check("内层退出后恢复", outerVar, 2);
+}
+check("块退出后恢复", outerVar, 1);
+{
+    let onlyInner = 5;
+    check("块内变量可用", onlyInner, 5);
+}
+
+// ---------------- 3. 算术运算 ----------------
+
+section("算术运算");
+check("加法", 1 + 2, 3);
+check("减法", 7 - 10, -3);
+check("乘法", 6 * 7, 42);
+check("除法恒为 float", 7 / 2, 3.5);
+checkStr("整除也保留小数点", 6 / 3, "2.0");
+check("取模", 7 % 3, 1);
+check("负数取模随除数", -7 % 3, 2);
+check("正数对负数取模", 7 % -3, -2);
+check("浮点取模", 6.5 % 2, 0.5);
+checkStr("int 与 float 混合得 float", 1 + 2.0, "3.0");
+check("一元负号", -5 + 3, -2);
+check("一元负号与乘法", -2 * 3, -6);
+check("乘除优先于加减", 1 + 2 * 3, 7);
+check("括号改变结合", (1 + 2) * 3, 9);
+check("减法左结合", 10 - 3 - 2, 5);
+check("除法左结合", 12 / 2 / 3, 2.0);
+check("乘除取模同级左结合", 2 * 3 % 4, 2);
+check("浮点乘法", 1.5 * 2, 3.0);
+check("字符串拼接", "ab" + "cd", "abcd");
+checkStr("拼接空串", "" + "", "");
+
+// ---------------- 4. 比较与相等 ----------------
+
+section("比较与相等");
+check("int 相等", 1 == 1, true);
+check("int 与 float 按值相等", 1 == 1.0, true);
+check("bool 不等于数值", 1 == true, false);
+check("字符串不等于数值", "1" == 1, false);
+check("不等运算符", 1 != 2, true);
+check("null 只等于 null", null == null, true);
+check("null 不等于 0", null == 0, false);
+check("数组按内容相等", [1, 2] == [1, 2], true);
+check("数组 int/float 按值相等", [1] == [1.0], true);
+check("嵌套数组相等", [1, [2, 3]] == [1, [2, 3]], true);
+check("长度不同的数组不等", [1] == [1, 2], false);
+check("大小比较", 2 >= 2, true);
+check("跨类型数值大小比较", 1 < 1.5, true);
+check("float 与 int 大小比较", 2.5 > 2, true);
+check("字符串大小比较", "abc" < "abd", true);
+check("数组字典序比较", [1, 2] < [1, 3], true);
+check("前缀数组更小", [1] < [1, 2], true);
+
+// ---------------- 5. 逻辑运算与真假 ----------------
+
+section("逻辑运算与真假");
+check("and 结果恒为布尔", 1 and 2, true);
+check("or 结果恒为布尔", 0 or "", true);
+check("false and true", false and true, false);
+check("null or false", null or false, false);
+check("not true", not true, false);
+check("0 为真，故 not 0 为假", not 0, false);
+check("not null", not null, true);
+check("not 只作用于紧跟的操作数", not true == false, true);
+{
+    let hits = 0;
+    if (0) { hits = hits + 1; }
+    if ("") { hits = hits + 1; }
+    if ([]) { hits = hits + 1; }
+    if (null) { hits = hits + 1; }
+    if (false) { hits = hits + 1; }
+    check("只有 false 与 null 为假", hits, 3);
+}
+{
+    let calls = 0;
+    fun bump() { calls = calls + 1; return true; }
+    let a = false and bump();
+    let b = true or bump();
+    check("and/or 短路不求值右侧", calls, 0);
+    check("短路结果", a, false);
+    let c = true and bump();
+    check("需要求值时右侧执行一次", calls, 1);
+}
+
+// ---------------- 6. 字符串 ----------------
+
+section("字符串");
+check("长度", len("hello"), 5);
+check("Unicode 按码点计数", len("中文"), 2);
+check("下标返回单字符", "abc"[1], "b");
+check("Unicode 下标", "中文"[1], "文");
+check("字面量直接下标", "abc"[2], "c");
+check("切片", "hello"[1:4], "ell");
+check("空切片", "hello"[3:3], "");
+check("起点大于终点得空串", "hello"[3:2], "");
+check("右端点钳制到长度", "hello"[1:99], "ello");
+check("拼接后长度", len("ab" + "cd"), 4);
+
+// ---------------- 7. 数组 ----------------
+
+section("数组");
+check("长度", len([1, 2, 3]), 3);
+check("下标", [1, 2, 3][1], 2);
+check("字面量切片后下标", [1, 2, 3][0:2][0], 1);
+{
+    let arr = [1, 2, 3];
+    arr[0] = 9;
+    check("下标赋值", arr, [9, 2, 3]);
+}
+{
+    let arr = [];
+    push(arr, 1);
+    push(arr, 2);
+    check("push 追加元素", arr, [1, 2]);
+    checkStr("push 返回 null", push(arr, 3), "null");
+    check("push 后长度", len(arr), 3);
+}
+{
+    let arr = [1, 2];
+    check("pop 返回末尾元素", pop(arr), 2);
+    check("pop 后数组", arr, [1]);
+}
+{
+    let arr = [[1], [2, 3]];
+    check("嵌套下标", arr[1][0], 2);
+}
+{
+    let a = [1];
+    let b = a;
+    push(b, 2);
+    check("数组是引用语义", a, [1, 2]);
+}
+{
+    let src = [1, 2, 3];
+    let part = src[0:2];
+    part[0] = 9;
+    check("切片返回新数组", src, [1, 2, 3]);
+}
+{
+    let inner = [0];
+    let outer = [inner];
+    let part = outer[0:1];
+    part[0][0] = 7;
+    check("切片是浅拷贝（元素共享）", inner, [7]);
+}
+
+// ---------------- 8. 切片 ----------------
+
+section("切片");
+{
+    let arr = [10, 20, 30, 40];
+    check("数组切片", arr[1:3], [20, 30]);
+    check("全量切片", arr[0:4], [10, 20, 30, 40]);
+    check("空切片", arr[2:2], []);
+    check("起点大于终点", arr[3:1], []);
+    check("右端点钳制", arr[0:99], [10, 20, 30, 40]);
+}
+
+// ---------------- 9. struct ----------------
+
+section("struct");
+struct Point { x, y }
+struct Book { title, pages }
+struct Line { a, b }
+struct Trailing { u, v, }
+{
+    let p = Point(3, 4);
+    check("自动构造与字段访问", p.x, 3);
+    check("第二个字段", p.y, 4);
+    p.x = 10;
+    check("字段赋值", p.x, 10);
+    checkStr("显示格式", p, "Point(10, 4)");
+    checkStr("字符串字段不加引号", Book("GB", 120), "Book(GB, 120)");
+    check("嵌套 struct 字段访问", Line(Point(1, 2), Point(3, 4)).b.y, 4);
+    checkStr("嵌套 struct 显示", Line(Point(1, 2), Point(3, 4)),
+             "Line(Point(1, 2), Point(3, 4))");
+    checkStr("struct 在数组中", [Point(1, 2)], "[Point(1, 2)]");
+    check("字段列表尾逗号", Trailing(1, 2).v, 2);
+    let p1 = Point(1, 2);
+    let p2 = Point(1, 2);
+    check("struct 按身份比较", p1 == p2, false);
+    let p3 = p1;
+    check("同一实例相等", p3 == p1, true);
+}
+
+// ---------------- 10. if / else ----------------
+
+section("if / else");
+fun grade(n) {
+    if (n >= 90) {
+        return "A";
+    } else if (n >= 60) {
+        return "B";
+    } else {
+        return "C";
+    }
+}
+check("if 分支", grade(95), "A");
+check("else if 分支", grade(70), "B");
+check("else 分支", grade(10), "C");
+{
+    let flag = 0;
+    if (true) { flag = 1; } else { flag = 2; }
+    check("条件为真走 then", flag, 1);
+    let flag2 = 0;
+    if (false) { flag2 = 1; } else { flag2 = 2; }
+    check("条件为假走 else", flag2, 2);
+}
+
+// ---------------- 11. while ----------------
+
+section("while");
+{
+    let i = 0;
+    let sum = 0;
+    while (i < 10) {
+        i = i + 1;
+        sum = sum + i;
+    }
+    check("while 求和 1..10", sum, 55);
+    check("循环结束后 i", i, 10);
+    let never = 0;
+    while (false) { never = 1; }
+    check("条件为假零次循环", never, 0);
+    let n = 0;
+    let odd = 0;
+    while (n < 5) {
+        n = n + 1;
+        if (n % 2 == 0) { continue; }
+        odd = odd + 1;
+    }
+    check("while + continue", odd, 3);
+    let m = 0;
+    while (true) {
+        m = m + 1;
+        if (m == 4) { break; }
+    }
+    check("while + break", m, 4);
+}
+
+// ---------------- 12. C 风格 for ----------------
+
+section("C 风格 for");
+{
+    let sum = 0;
+    for (let i = 0; i < 5; i = i + 1) { sum = sum + i; }
+    check("for 求和", sum, 10);
+    let j = 0;
+    for (j = 0; j < 3; j = j + 1) { }
+    check("无 let 保留退出值", j, 3);
+    let s = 0;
+    for (let i = 10; i > 0; i = i - 2) { s = s + i; }
+    check("递减步长", s, 30);
+    let count = 0;
+    for (let i = 0; ; i = i + 1) {
+        count = count + 1;
+        if (count == 3) { break; }
+    }
+    check("省略条件 + break", count, 3);
+    let s2 = 0;
+    for (let i = 0; i < 5; i = i + 1) {
+        if (i == 2) { continue; }
+        s2 = s2 + i;
+    }
+    check("for + continue", s2, 8);
+    let s3 = 0;
+    for (let i = 0; i < 10; i = i + 1) {
+        if (i == 3) { break; }
+        s3 = s3 + i;
+    }
+    check("for + break", s3, 3);
+}
+
+// ---------------- 13. 区间 for ----------------
+
+section("区间 for");
+{
+    let s = 0;
+    for (let v in [1, 5]) { s = s + v; }
+    check("[1,5] 双闭", s, 15);
+    let s2 = 0;
+    for (let v in [1, 5)) { s2 = s2 + v; }
+    check("[1,5) 左闭右开", s2, 10);
+    let s3 = 0;
+    for (let v in (0, 5]) { s3 = s3 + v; }
+    check("(0,5] 左开右闭", s3, 15);
+    let s4 = 0;
+    for (let v in (0, 5)) { s4 = s4 + v; }
+    check("(0,5) 双开", s4, 10);
+    let times = 0;
+    for (let v in [5, 1]) { times = times + 1; }
+    check("起点大于终点零次", times, 0);
+    let w = 0;
+    for (w in [1, 5]) { }
+    check("无 let 保留终点值", w, 5);
+    let w2 = 0;
+    for (w2 in [7, 1]) { }
+    check("零次循环赋起点值", w2, 7);
+}
+
+// ---------------- 14. 数组遍历 for ----------------
+
+section("数组遍历 for");
+{
+    let arr = [10, 20, 30];
+    let sum = 0;
+    for (let v in arr) { sum = sum + v; }
+    check("遍历数组求和", sum, 60);
+    let two = [5, 7];
+    let s2 = 0;
+    for (let v in two) { s2 = s2 + v; }
+    check("两元素数组须先赋值再遍历", s2, 12);
+    let snap = [1, 2, 3];
+    let count = 0;
+    for (let v in snap) {
+        count = count + 1;
+        push(snap, 99);
+    }
+    check("快照遍历轮数不变", count, 3);
+    check("循环体 push 作用于原数组", len(snap), 6);
+    let clr = [1, 2, 3];
+    let c2 = 0;
+    for (let v in clr) {
+        c2 = c2 + 1;
+        pop(clr);
+    }
+    check("循环体清空不影响轮数", c2, 3);
+    check("循环体 pop 作用于原数组", len(clr), 0);
+    let last = 0;
+    for (last in two) { }
+    check("无 let 保留最后元素", last, 7);
+    let inner = [0];
+    let holder = [inner];
+    for (let x in holder) { x[0] = 9; }
+    check("快照遍历共享元素引用", inner, [9]);
+}
+
+// ---------------- 15. 嵌套循环与 break/continue ----------------
+
+section("嵌套循环");
+{
+    let s = 0;
+    for (let v in [1, 10]) {
+        if (v > 5) { break; }
+        s = s + v;
+    }
+    check("break 提前退出", s, 15);
+    let s2 = 0;
+    for (let v in [1, 10]) {
+        if (v % 2 == 0) { continue; }
+        s2 = s2 + v;
+    }
+    check("continue 跳过本轮", s2, 25);
+    let out = 0;
+    for (let i in [1, 3]) {
+        for (let j in [1, 3]) {
+            if (j == 2) { break; }
+            out = out + 1;
+        }
+    }
+    check("break 只跳出内层", out, 3);
+}
+
+// ---------------- 16. 函数 ----------------
+
+section("函数");
+fun add(a, b) { return a + b; }
+fun noReturn() { let t = 1; }
+fun bareReturn() { return; }
+fun fact(n) {
+    if (n <= 1) { return 1; }
+    return n * fact(n - 1);
+}
+fun isEven(n) {
+    if (n == 0) { return true; }
+    return isOdd(n - 1);
+}
+fun isOdd(n) {
+    if (n == 0) { return false; }
+    return isEven(n - 1);
+}
+
+check("参数与返回", add(2, 3), 5);
+checkStr("无 return 返回 null", noReturn(), "null");
+checkStr("return; 返回 null", bareReturn(), "null");
+check("递归", fact(5), 120);
+check("相互递归（偶）", isEven(10), true);
+check("相互递归（奇）", isOdd(7), true);
+check("前向调用", forwardRef(3), 6);
+fun forwardRef(n) { return n * 2; }
+
+fun closureRead() {
+    let base = 100;
+    fun inner() { return base + 1; }
+    return inner();
+}
+check("闭包读外层变量", closureRead(), 101);
+
+fun closureWrite() {
+    let c = 0;
+    fun inc() { c = c + 1; }
+    inc();
+    inc();
+    inc();
+    return c;
+}
+check("闭包写外层变量", closureWrite(), 3);
+
+fun paramShadow(a) {
+    let a = 5;
+    return a;
+}
+check("函数体内 let 遮蔽参数", paramShadow(1), 5);
+
+fun blockHoist() {
+    return localFn(2);
+    fun localFn(n) { return n * 10; }
+}
+check("函数体内后置声明可前向调用", blockHoist(), 20);
+
+{
+    let order = "";
+    fun tag(s) {
+        order = order + s;
+        return 0;
+    }
+    fun take3(a, b, c) { return a + b + c; }
+    take3(tag("a"), tag("b"), tag("c"));
+    check("实参从左到右求值", order, "abc");
+}
+
+// ---------------- 17. 声明提升 ----------------
+
+section("声明提升");
+check("struct 可前向使用", Hoisted(2, 3).y, 3);
+struct Hoisted { x, y }
+
+// ---------------- 18. 内建函数 ----------------
+
+section("内建函数");
+check("len 数组", len([1, 2]), 2);
+check("len 空数组", len([]), 0);
+check("len 字符串", len("abc"), 3);
+check("int 向零取整", int(3.9), 3);
+check("int 负数向零取整", int(-3.9), -3);
+check("int 整数原样", int(7), 7);
+check("int 解析字符串", int("12"), 12);
+check("int 解析负号", int("-5"), -5);
+check("int 作用于除法结果", int(7 / 2), 3);
+check("float 整数转换", float(2), 2.0);
+checkStr("float 整数转换显示", float(2), "2.0");
+check("float 解析字符串", float("2.5"), 2.5);
+check("float 解析负小数", float("-0.5"), -0.5);
+checkStr("str 整数", str(42), "42");
+checkStr("str 浮点", str(1.5), "1.5");
+checkStr("str 布尔", str(true), "true");
+checkStr("str null", str(null), "null");
+checkStr("str 数组", str([1, 2]), "[1, 2]");
+{
+    let len = 5;
+    check("内建可被 let 遮蔽", len, 5);
+}
+
+// ---------------- 19. 求值顺序 ----------------
+
+section("求值顺序");
+{
+    let seq = "";
+    fun mark(s) {
+        seq = seq + s;
+        return 0;
+    }
+    let r = mark("a") + mark("b");
+    check("二元运算先左后右", seq, "ab");
+    check("运算结果", r, 0);
+}
+{
+    let idx = 0;
+    fun setIdx() {
+        idx = 1;
+        return 5;
+    }
+    let arr = [0, 0];
+    arr[idx] = setIdx();
+    check("赋值先求右值再求下标", arr, [0, 5]);
+}
+
+// ---------------- 20. 综合 ----------------
+
+section("综合");
+{
+    struct Rect { w, h }
+    fun area(r) { return r.w * r.h; }
+    fun makeRect(w, h) { return Rect(w, h); }
+    let rects = [makeRect(2, 3), makeRect(4, 5)];
+    let totalArea = 0;
+    for (let r in rects) {
+        totalArea = totalArea + area(r);
+    }
+    check("struct 数组 + 函数 + 遍历", totalArea, 26);
+    check("函数返回 struct 并访问字段", makeRect(6, 7).h, 7);
+}
+{
+    let data = [5, 3, 8, 1];
+    let n = len(data);
+    for (let i = 0; i < n; i = i + 1) {
+        for (let j = 0; j < n - 1 - i; j = j + 1) {
+            if (data[j] > data[j + 1]) {
+                let tmp = data[j];
+                data[j] = data[j + 1];
+                data[j + 1] = tmp;
+            }
+        }
+    }
+    check("冒泡排序", data, [1, 3, 5, 8]);
+}
+
+// ---------------- 汇总 ----------------
+
+print("");
+if (failed == 0) {
+    print("全部通过：", total, "项断言");
+} else {
+    print("失败：", failed, "项，共", total, "项断言");
+    // GB 无 exit 内建：故意触发除零错误，让进程以退出码 1 结束
+    let exitCodeMustBeNonZero = 1 / 0;
+}
