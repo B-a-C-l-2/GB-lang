@@ -98,7 +98,14 @@ fun inner() { return 1 / 0; }
 ## 开发与测试
 
 ```bash
-python -m unittest discover -s tests    # 运行全部测试
+python -m gb tests/selftest.gb          # 语言功能自测（黑盒，用 GB 写，断言数见输出）
+python -m unittest discover -s tests    # 词法/语法/运行时错误与 CLI 端到端
+```
+
+`selftest.gb` 覆盖语言的全部公开功能：字面量与显示格式、作用域、算术与比较、逻辑短路、字符串、数组、切片、struct、四种循环、break/continue、函数与闭包、声明提升、内建函数、求值顺序。全部通过时退出码为 0，有失败时打印 `[FAIL]` 项并以退出码 1 结束。一条命令跑完全部测试：
+
+```bash
+python -m gb tests/selftest.gb && python -m unittest discover -s tests
 ```
 
 源码结构：`gb/lexer.py`（词法）→ `gb/ast.py`（语法树）→ `gb/parser.py`（语法）→ `gb/interpreter.py`（求值）→ `gb/builtins.py`（内建），入口 `gb/__main__.py`。
