@@ -189,6 +189,27 @@ def _to_str(args):
     return display(args[0])
 
 
+def _is_int(args):
+    """v0.4.6：int(x) 不会报错时为 true。
+
+    直接复用转换实现（捕获其 GbError），避免规则与 int() 漂移。
+    """
+    try:
+        _to_int(args)
+    except GbError:
+        return False
+    return True
+
+
+def _is_float(args):
+    """v0.4.6：float(x) 不会报错时为 true（同 _is_int，复用转换实现）。"""
+    try:
+        _to_float(args)
+    except GbError:
+        return False
+    return True
+
+
 def _push(args):
     arr, value = args
     if not isinstance(arr, list):
@@ -215,5 +236,7 @@ BUILTINS = {
     "str": Builtin("str", 1, 1, _to_str),
     "push": Builtin("push", 2, 2, _push),
     "pop": Builtin("pop", 1, 1, _pop),
+    "is_int": Builtin("is_int", 1, 1, _is_int),
+    "is_float": Builtin("is_float", 1, 1, _is_float),
 }
 # 可变参数：max_arity=None 表示不限制
