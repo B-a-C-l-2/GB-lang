@@ -110,4 +110,10 @@ python -m unittest discover -s tests    # 词法/语法/运行时错误与 CLI �
 python -m gb tests/selftest.gb && python -m unittest discover -s tests
 ```
 
+与等价 Python 实现的性能对比（同一批工作负载，先比校验和再比耗时）：
+
+```bash
+python benchmarks/compare.py            # GB / Python 单次计算耗时与倍率
+```
+
 源码结构：`gb/lexer.py`（词法）→ `gb/ast.py`（语法树）→ `gb/parser.py`（语法）→ `gb/interpreter.py`（求值）→ `gb/builtins.py`（内建），入口 `gb/__main__.py`。
