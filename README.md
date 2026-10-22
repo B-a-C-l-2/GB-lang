@@ -116,4 +116,6 @@ python -m gb tests/selftest.gb && python -m unittest discover -s tests
 python benchmarks/compare.py            # GB / Python 单次计算耗时与倍率
 ```
 
+测量方法与结果记录在 [`benchmarks/README.md`](benchmarks/README.md)。
+
 源码结构：`gb/lexer.py`（词法）→ `gb/ast.py`（语法树）→ `gb/parser.py`（语法）→ `gb/interpreter.py`（求值）→ `gb/builtins.py`（内建），入口 `gb/__main__.py`。
