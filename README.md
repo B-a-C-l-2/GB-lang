@@ -43,8 +43,10 @@ fun add(a, b) { return a + b; }   // 函数（声明提升：支持前向调用�
 struct Point { x, y }             // 纯数据结构，自动生成 Point(x, y)
 fun dist2(p) { return p.x * p.x + p.y * p.y; }
 
-print("len =", len(a));           // 内建：print input len int float str push pop
+print("len =", len(a));           // 内建：print input len int float str push pop is_int is_float
 let name = input("name? ");       // 读取一行输入；遇 EOF 返回 null
+// 转换前探测：is_int(x) / is_float(x) 为 true，表示 int(x) / float(x) 不会报错
+let raw = input("n? "); if (is_int(raw)) { print("翻倍 =", int(raw) * 2); }
 ```
 
 运算要点：`/` 永远得到浮点数（`3 / 2 == 1.5`）；`%` 同 Python（余数随除数）；只有 `false` 和 `null` 为假（`0`、`""`、空数组都为真）；没有 `++`、`+=`，自增写成 `i = i + 1`；`and`/`or` 短路，且结果恒为布尔。
