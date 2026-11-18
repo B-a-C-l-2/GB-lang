@@ -13,11 +13,8 @@
 // 区间 for / 数组遍历 for、break / continue、函数（递归、相互递归、
 // 闭包、声明提升）、内建函数、求值顺序、综合示例。
 //
-// 不在本脚本内（及原因）：
-//   - input：需要从 stdin 喂数据，同一进程里无法既喂输入又断言
-//   - 错误路径（语法错、运行时错、退出码）：GB 无异常机制，报错即终止
-//   - print 自身输出：进程内无法捕获 stdout
-// 以上三类由 Python 套件覆盖：python -m unittest discover -s tests
+// input、print 实际输出、错误诊断和退出码通过 run_gb 隔离执行并断言。
+// 测试源码、输入、预期结果和断言均使用 GB 编写，无需人工输入。
 
 // ---------------- 微型断言框架 ----------------
 
@@ -611,6 +608,43 @@ section("综合");
     }
     check("冒泡排序", data, [1, 3, 5, 8]);
 }
+
+// ---------------- 21. 输入输出与错误路径 ----------------
+
+section("run_gb：输入输出与错误路径");
+fun checkRun(name, source, stdin, stdout, stderr, code) {
+    let result = run_gb(source, stdin);
+    check(name + " stdout", result.stdout, stdout);
+    check(name + " stderr", result.stderr, stderr);
+    check(name + " exit_code", result.exit_code, code);
+}
+checkRun("输入普通行、空行、末行和 EOF",
+    "print(input()); print(input()); print(input()); print(input());",
+    "中文\n\nlast", "中文\n\nlast\nnull\n", "", 0);
+checkRun("提示语不换行", "print(input(\"name? \"));",
+    "GB\n", "name? GB\n", "", 0);
+checkRun("print 空参数、分隔符和显示格式",
+    "struct P { x } print(); print(true, false, null, 2.0, [1, 2], P(3));",
+    "", "\ntrue false null 2.0 [1, 2] P(3)\n", "", 0);
+checkRun("词法错误", "@", "", "",
+    "词法错误（第 1 行，第 1 列）：非法字符 '@'\n@\n^\n", 1);
+checkRun("语法错误阻止整个文件执行", "print(1);\nlet x = ;", "", "",
+    "语法错误（第 2 行，第 9 列）：此处应为表达式，遇到 \";\"\nlet x = ;\n        ^\n", 1);
+checkRun("运行时错误保留此前输出并终止", "print(1);\n1 / 0;\nprint(2);", "", "1\n",
+    "运行时错误（第 2 行，第 1 列）：除数为零\n1 / 0;\n^\n", 1);
+checkRun("函数错误调用栈", "fun f() { 1 / 0; }\nf();", "", "",
+    "运行时错误（第 1 行，第 11 列）：除数为零\nfun f() { 1 / 0; }\n          ^\n  在 f（第 2 行，第 1 列）调用\n", 1);
+{
+    let result = run_gb("print(input());");
+    check("省略输入立即 EOF", result.stdout, "null\n");
+    check("省略输入成功退出", result.exit_code, 0);
+}
+checkRun("子进程不继承父变量", "print(total);", "", "",
+    "运行时错误（第 1 行，第 7 列）：变量 total 未定义\nprint(total);\n      ^\n", 1);
+checkRun("run_gb 参数类型检查", "run_gb(1);", "", "",
+    "运行时错误（第 1 行，第 1 列）：run_gb 的源码和输入必须是字符串\nrun_gb(1);\n^\n", 1);
+checkRun("run_gb 参数个数检查", "run_gb();", "", "",
+    "运行时错误（第 1 行，第 1 列）：内建函数 run_gb 需要 1-2 个参数，实际 0 个\nrun_gb();\n^\n", 1);
 
 // ---------------- 汇总 ----------------
 

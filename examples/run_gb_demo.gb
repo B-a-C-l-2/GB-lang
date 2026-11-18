@@ -1,0 +1,21 @@
+// 一个命令：python -m gb examples/run_gb_demo.gb
+fun check(ok, name) {
+    if not ok {
+        print("FAIL:", name);
+        // GB 尚无 exit 内建；失败时用运行时错误产生非零退出码。
+        let fail = 1 / 0;
+    }
+    print("PASS:", name);
+}
+
+let io = run_gb("print(input()); print(input());", "hello\n");
+check(io.stdout == "hello\nnull\n" and io.stderr == "" and io.exit_code == 0,
+      "input / print / EOF");
+
+let syntax = run_gb("let x = ;");
+check(syntax.exit_code == 1 and len(syntax.stderr) > 0,
+      "syntax error");
+
+let runtime = run_gb("print(1 / 0);");
+check(runtime.exit_code == 1 and len(runtime.stderr) > 0,
+      "runtime error");

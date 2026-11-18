@@ -3,6 +3,9 @@
 import math
 import re
 import sys
+import subprocess
+import tempfile
+from pathlib import Path
 
 # v0.3.1：int/float 的字符串解析严格匹配 GB 数值字面量形式（可选前导 -），
 # 拒绝 Python 扩展形式（全角数字、下划线、空白、+ 号、nan/inf、科学计数法）。
@@ -227,7 +230,38 @@ def _pop(args):
     return arr.pop()
 
 
+def _run_gb(args):
+    """测试专用：在独立解释器进程中运行源码并捕获结果。"""
+    source = args[0]
+    stdin = args[1] if len(args) == 2 else ""
+    if not isinstance(source, str) or not isinstance(stdin, str):
+        raise GbError("run_gb 的源码和输入必须是字符串")
+    project_root = Path(__file__).resolve().parent.parent
+    try:
+        with tempfile.TemporaryDirectory(prefix="gb-test-") as directory:
+            path = Path(directory) / "case.gb"
+            path.write_text(source, encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "-B", "-m", "gb", str(path)],
+                cwd=project_root, input=stdin, capture_output=True,
+                text=True, encoding="utf-8", timeout=5,
+            )
+    except subprocess.TimeoutExpired:
+        raise GbError("run_gb 执行超时（5 秒）") from None
+    except OSError as error:
+        raise GbError(f"run_gb 无法启动或读取程序：{error}") from None
+    return Instance(_RUN_RESULT, {
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "exit_code": result.returncode,
+    })
+
+
+_RUN_RESULT = StructDef("RunResult", ["stdout", "stderr", "exit_code"])
+
+
 BUILTINS = {
+    "run_gb": Builtin("run_gb", 1, 2, _run_gb),
     "print": Builtin("print", 0, None, _print),
     "input": Builtin("input", 0, 1, _input),
     "len": Builtin("len", 1, 1, _len),

@@ -99,12 +99,25 @@ fun inner() { return 1 / 0; }
 
 ## 开发与测试
 
+一个命令运行 GB 编写的全部黑盒测试，无需人工输入：
+
+```bash
+python -m gb tests/selftest.gb
+```
+
+测试专用内建 `run_gb(source, stdin?)` 在独立解释器进程中运行源码字符串，
+返回带 `stdout`、`stderr`、`exit_code` 字段的结果。输入省略时立即 EOF；
+输出为 UTF-8 文本，换行统一为 `\n`。被测程序报错不会中断测试脚本；
+超过 5 秒或无法启动时，`run_gb` 自身报运行时错误。
+自测中的输入、预期输出、错误诊断和退出码断言均用 GB 编写。
+简短示例见 `examples/run_gb_demo.gb`。
+
 ```bash
 python -m gb tests/selftest.gb          # 语言功能自测（黑盒，用 GB 写，断言数见输出）
 python -m unittest discover -s tests    # 词法/语法/运行时错误与 CLI 端到端
 ```
 
-`selftest.gb` 覆盖语言的全部公开功能：字面量与显示格式、作用域、算术与比较、逻辑短路、字符串、数组、切片、struct、四种循环、break/continue、函数与闭包、声明提升、内建函数、求值顺序。全部通过时退出码为 0，有失败时打印 `[FAIL]` 项并以退出码 1 结束。一条命令跑完全部测试：
+`selftest.gb` 覆盖语言的公开功能：字面量与显示格式、作用域、算术与比较、逻辑短路、字符串、数组、切片、struct、四种循环、break/continue、函数与闭包、声明提升、内建函数、求值顺序，以及输入输出和错误路径。全部通过时退出码为 0，有失败时打印 `[FAIL]` 项并以退出码 1 结束。同时运行黑盒测试和额外的 Python 回归测试：
 
 ```bash
 python -m gb tests/selftest.gb && python -m unittest discover -s tests
