@@ -132,3 +132,14 @@ python benchmarks/compare.py            # GB / Python 单次计算耗时与倍�
 测量方法与结果记录在 [`benchmarks/README.md`](benchmarks/README.md)。
 
 源码结构：`gb/lexer.py`（词法）→ `gb/ast.py`（语法树）→ `gb/parser.py`（语法）→ `gb/interpreter.py`（求值）→ `gb/builtins.py`（内建），入口 `gb/__main__.py`。
+
+## 课程应用与 Agent 开发资料
+
+- [Agent 使用 GB 开发应用指南](docs/agent-guide.md)
+- [成绩管理应用：运行说明与演示步骤](apps/grades/README.md)
+- [Agent 辅助开发记录](apps/grades/DEVELOPMENT.md)
+- [性能报告与最新实测](benchmarks/README.md)
+
+应用运行：`python -m gb apps/grades/main.gb`。
+应用端到端验证：`python apps/grades/test_app.py`。
+应用源码共 252 行，其中非空、非注释行 251 行。

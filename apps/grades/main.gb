@@ -1,0 +1,252 @@
+﻿// 成绩管理：本次运行内保存数据，EOF 可安全退出。
+struct Student { id, name, chinese, math, english }
+let students = [];
+fun readText(prompt) {
+    while (true) {
+        let value = input(prompt);
+        if (value == null) {
+            return null;
+        }
+        if (len(value) > 0) {
+            return value;
+        }
+        print("输入不能为空");
+    }
+}
+fun readInt(prompt, low, high) {
+    while (true) {
+        let raw = input(prompt);
+        if (raw == null) {
+            return null;
+        }
+        if (is_int(raw)) {
+            let value = int(raw);
+            if (value >= low and value <= high) {
+                return value;
+            }
+        }
+        print("请输入范围内整数", low, high);
+    }
+}
+fun findId(id) {
+    for (let i = 0; i < len(students); i = i + 1) {
+        if (students[i].id == id) {
+            return i;
+        }
+    }
+    return -1;
+}
+fun total(s) {
+    return s.chinese + s.math + s.english;
+}
+fun show(s) {
+    print(s.id, s.name, s.chinese, s.math, s.english, total(s));
+}
+fun header() {
+    print("学号 姓名 语文 数学 英语 总分");
+}
+fun addStudent() {
+    let id = readInt("学号: ", 1, 999999);
+    if (id == null) {
+        return false;
+    }
+    if (findId(id) >= 0) {
+        print("学号已存在");
+        return true;
+    }
+    let name = readText("姓名: ");
+    if (name == null) {
+        return false;
+    }
+    let chinese = readInt("语文: ", 0, 100);
+    if (chinese == null) {
+        return false;
+    }
+    let math = readInt("数学: ", 0, 100);
+    if (math == null) {
+        return false;
+    }
+    let english = readInt("英语: ", 0, 100);
+    if (english == null) {
+        return false;
+    }
+    push(students, Student(id, name, chinese, math, english));
+    print("录入成功");
+    return true;
+}
+fun listStudents() {
+    if (len(students) == 0) {
+        print("暂无记录");
+        return;
+    }
+    header();
+    for (let s in students) {
+        show(s);
+    }
+    print("记录数", len(students));
+}
+fun queryStudent() {
+    let id = readInt("查询学号: ", 1, 999999);
+    if (id == null) {
+        return false;
+    }
+    let index = findId(id);
+    if (index < 0) {
+        print("未找到学生");
+    } else {
+        header();
+        show(students[index]);
+    }
+    return true;
+}
+fun editStudent() {
+    let id = readInt("修改学号: ", 1, 999999);
+    if (id == null) {
+        return false;
+    }
+    let index = findId(id);
+    if (index < 0) {
+        print("未找到学生");
+        return true;
+    }
+    let chinese = readInt("新语文: ", 0, 100);
+    if (chinese == null) {
+        return false;
+    }
+    let math = readInt("新数学: ", 0, 100);
+    if (math == null) {
+        return false;
+    }
+    let english = readInt("新英语: ", 0, 100);
+    if (english == null) {
+        return false;
+    }
+    let s = students[index];
+    s.chinese = chinese;
+    s.math = math;
+    s.english = english;
+    print("修改成功");
+    return true;
+}
+fun deleteStudent() {
+    let id = readInt("删除学号: ", 1, 999999);
+    if (id == null) {
+        return false;
+    }
+    let index = findId(id);
+    if (index < 0) {
+        print("未找到学生");
+        return true;
+    }
+    let answer = input("输入 y 确认删除: ");
+    if (answer == null) {
+        return false;
+    }
+    if (answer != "y") {
+        print("已取消");
+        return true;
+    }
+    for (let i = index; i < len(students) - 1; i = i + 1) {
+        students[i] = students[i + 1];
+    }
+    pop(students);
+    print("删除成功");
+    return true;
+}
+fun ranking() {
+    let ordered = students[0:len(students)];
+    for (let i = 0; i < len(ordered); i = i + 1) {
+        for (let j = 0; j < len(ordered) - 1 - i; j = j + 1) {
+            let left = ordered[j];
+            let right = ordered[j + 1];
+            if (total(left) < total(right) or
+                (total(left) == total(right) and left.id > right.id)) {
+                ordered[j] = right;
+                ordered[j + 1] = left;
+            }
+        }
+    }
+    print("总分降序，同分按学号升序");
+    header();
+    for (let i = 0; i < len(ordered); i = i + 1) {
+        print("名次", i + 1);
+        show(ordered[i]);
+    }
+}
+fun statistics() {
+    if (len(students) == 0) {
+        print("暂无记录");
+        return;
+    }
+    let sum = 0;
+    let passed = 0;
+    let best = students[0];
+    let worst = students[0];
+    for (let s in students) {
+        sum = sum + total(s);
+        if (s.chinese >= 60 and s.math >= 60 and s.english >= 60) {
+            passed = passed + 1;
+        }
+        if (total(s) > total(best)) {
+            best = s;
+        }
+        if (total(s) < total(worst)) {
+            worst = s;
+        }
+    }
+    print("人数", len(students));
+    print("平均总分", sum / len(students));
+    print("全科及格人数", passed);
+    print("最高总分", total(best));
+    print("最低总分", total(worst));
+}
+fun searchName() {
+    let name = readText("精确姓名: ");
+    if (name == null) {
+        return false;
+    }
+    let found = 0;
+    header();
+    for (let s in students) {
+        if (s.name == name) {
+            show(s);
+            found = found + 1;
+        }
+    }
+    print("匹配人数", found);
+    return true;
+}
+fun menu() {
+    print("1录入 2列表 3学号查询 4修改 5删除");
+    print("6排名 7统计 8姓名查询 0退出");
+}
+fun main() {
+    print("GB 成绩管理：数据仅在本次运行有效");
+    let running = true;
+    while (running) {
+        menu();
+        let choice = readInt("选择: ", 0, 8);
+        if (choice == null or choice == 0) {
+            break;
+        }
+        if (choice == 1) {
+            running = addStudent();
+        } else if (choice == 2) {
+            listStudents();
+        } else if (choice == 3) {
+            running = queryStudent();
+        } else if (choice == 4) {
+            running = editStudent();
+        } else if (choice == 5) {
+            running = deleteStudent();
+        } else if (choice == 6) {
+            ranking();
+        } else if (choice == 7) {
+            statistics();
+        } else if (choice == 8) {
+            running = searchName();
+        }
+    }
+    print("再见");
+}
+main();
