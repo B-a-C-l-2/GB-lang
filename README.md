@@ -1,6 +1,13 @@
 # GB 语言
 
-一门解释型通用脚本语言（个人 demo）。本文件只帮你快速上手；完整规则以 [`docs/design.md`](docs/design.md) 为准。
+一门解释型通用脚本语言（个人 demo）。本文件提供项目入口与快速上手。
+
+## 文档入口
+
+- [GB 语言语法与使用规范](docs/language-reference.md)：词法、完整 EBNF、语义与内建函数。
+- [GB 语言开发指南](docs/developer-guide.md)：面向开发者的运行、应用编写、测试和调试流程。
+- [给编程 Agent 的 GB 使用指南](docs/agent-guide.md)：供 AI 直接使用的应用开发说明。
+- [设计与变更记录](docs/design.md)：设计背景、历史决策与实现演进。
 
 ## 运行环境
 
